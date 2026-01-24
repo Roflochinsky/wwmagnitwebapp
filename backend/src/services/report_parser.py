@@ -186,13 +186,21 @@ class ReportParser:
                 if not tn:
                     continue
 
+                date_val = self._parse_date(row.get("date"))
+                date_begin = self._parse_datetime(row.get("date_begin"))
+                date_end = self._parse_datetime(row.get("date_end"))
+
+                # Пропускаем, если нет обязательных полей
+                if not date_val or not date_begin or not date_end:
+                    continue
+
                 employee = await self._get_or_create_employee(tn, name)
 
                 shift = Shift(
                     employee_id=employee.id,
-                    date=self._parse_date(row.get("date")),
-                    date_begin=self._parse_datetime(row.get("date_begin")),
-                    date_end=self._parse_datetime(row.get("date_end")),
+                    date=date_val,
+                    date_begin=date_begin,
+                    date_end=date_end,
                     full_go_percent=self._to_float(row.get("full_go")),
                     full_idle_percent=self._to_float(row.get("full_idle")),
                     full_work_percent=self._to_float(row.get("full_work")),
@@ -220,12 +228,19 @@ class ReportParser:
                 if not tn:
                     continue
 
+                dt_start = self._parse_datetime(row.get("dt_start"))
+                dt_end = self._parse_datetime(row.get("dt_end"))
+
+                # Пропускаем, если нет дат (вызывает IntegrityError)
+                if not dt_start or not dt_end:
+                    continue
+
                 employee = await self._get_or_create_employee(tn, name)
 
                 downtime = Downtime(
                     employee_id=employee.id,
-                    dt_start=self._parse_datetime(row.get("dt_start")),
-                    dt_end=self._parse_datetime(row.get("dt_end")),
+                    dt_start=dt_start,
+                    dt_end=dt_end,
                     duration_minutes=self._to_int(row.get("duration", 0)),
                     ble_tag_id=self._to_int(row.get("chosen_ble_tag_number")),
                 )
@@ -247,13 +262,19 @@ class ReportParser:
                 tn = self._extract_tn(row)
                 if not tn:
                     continue
+                
+                shift_day = self._parse_date(row.get("shift_day", row.get("день смены")))
+                time_only = self._parse_datetime(row.get("time_only", row.get("время")))
+
+                if not shift_day or not time_only:
+                    continue
 
                 employee = await self._get_or_create_employee(tn, "Unknown")
 
                 ble_log = BleLog(
                     employee_id=employee.id,
-                    shift_day=self._parse_date(row.get("shift_day", row.get("день смены"))),
-                    time_only=self._parse_datetime(row.get("time_only", row.get("время"))),
+                    shift_day=shift_day,
+                    time_only=time_only,
                     ble_tag=self._to_int(row.get("ble_tag", row.get("метка", 0))),
                     zone_id=self._to_int(row.get("zone_id", row.get("зона"))),
                 )
