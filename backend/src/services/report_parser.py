@@ -1,25 +1,119 @@
-import io
-import re
-from datetime import datetime
-from typing import Optional
-import pandas as pd
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from src.models import Employee, Shift, Downtime, BleLog, ProcessedFile
+from sqlalchemy import select, update, insert
+from src.models import Employee, Shift, Downtime, BleLog, BleTag, Zone, ProcessedFile
+from src.gdrive import DriveService
+from src.config import get_settings
 
 
 class ReportParser:
-    """Парсер Excel-отчётов Report 8/10/11"""
+    """Парсер Excel-отчётов Report 8/10/11 с автоматической синхронизацией справочников"""
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.drive_service = DriveService()
+        self.settings = get_settings()
+
+    async def seed_zones(self):
+        """Начальная загрузка справочника зон из документации"""
+        zones_data = {
+            0: "Вне зоны BLE-маячков",
+            1: "Зоны проведения работ",
+            2: "Столовые",
+            3: "Опасные зоны",
+            4: "Курилки",
+            5: "Зоны отдыха",
+            6: "ВЖГ",
+            7: "Туалеты",
+            8: "Остановки автобусов",
+            9: "Административные помещения",
+            10: "Зона выдачи WW",
+            11: "Склад",
+            12: "Мастерские",
+            13: "КПП",
+        }
+        
+        for zid, name in zones_data.items():
+            stmt = select(Zone).where(Zone.zone_id == zid)
+            res = await self.db.execute(stmt)
+            zone = res.scalar_one_or_none()
+            if zone:
+                zone.name = name
+            else:
+                self.db.add(Zone(zone_id=zid, name=name))
+        
+        await self.db.commit()
+
+    async def sync_reference_data(self):
+        """Синхронизация справочников из Google Sheets"""
+        await self.seed_zones()
+        
+        # 1. Синхронизация сотрудников (People Mapping)
+        if self.settings.sheet_id_people_mapping:
+            df_people = self.drive_service.download_sheet_as_df(self.settings.sheet_id_people_mapping)
+            if not df_people.empty:
+                # Маппинг колонок (эвристика)
+                headers = [str(c).strip().lower() for c in df_people.columns]
+                idx_tn = next((i for i, h in enumerate(headers) if any(k in h for k in ['тн', 'табель', 'tab'])), None)
+                idx_name = next((i for i, h in enumerate(headers) if any(k in h for k in ['фио', 'сотрудник', 'name'])), None)
+                idx_dept = next((i for i, h in enumerate(headers) if any(k in h for k in ['участок', 'отдел', 'dept'])), None)
+                
+                if idx_tn is not None:
+                    for _, row in df_people.iterrows():
+                        try:
+                            tn = self._to_int(row.iloc[idx_tn])
+                            if not tn: continue
+                            name = str(row.iloc[idx_name]) if idx_name is not None else "Unknown"
+                            dept = str(row.iloc[idx_dept]) if idx_dept is not None else None
+                            
+                            await self._upsert_employee(tn, name, dept)
+                        except Exception: continue
+
+        # 2. Синхронизация BLE меток (Journal)
+        if self.settings.sheet_id_ble_journal:
+            df_ble = self.drive_service.download_sheet_as_df(self.settings.sheet_id_ble_journal)
+            if not df_ble.empty:
+                # Обычно: A - Номер, D - Описание
+                for _, row in df_ble.iterrows():
+                    try:
+                        tag_num = self._to_int(row.iloc[0])
+                        if not tag_num: continue
+                        desc = str(row.iloc[3]) if len(row) > 3 else str(row.iloc[1])
+                        
+                        await self._upsert_ble_tag(tag_num, desc)
+                    except Exception: continue
+        
+        await self.db.commit()
+
+    async def _upsert_employee(self, tn: int, name: str, dept: Optional[str]):
+        stmt = select(Employee).where(Employee.tn_number == tn)
+        res = await self.db.execute(stmt)
+        employee = res.scalar_one_or_none()
+        
+        if employee:
+            employee.name = name
+            employee.department = dept
+        else:
+            self.db.add(Employee(tn_number=tn, name=name, department=dept))
+
+    async def _upsert_ble_tag(self, tag_num: int, desc: str):
+        stmt = select(BleTag).where(BleTag.tag_number == tag_num)
+        res = await self.db.execute(stmt)
+        tag = res.scalar_one_or_none()
+        
+        if tag:
+            tag.description = desc
+        else:
+            self.db.add(BleTag(tag_number=tag_num, description=desc))
 
     async def parse_and_save(
         self,
         content: bytes,
         filename: str,
         report_type: str = "auto",
+        sync_refs: bool = True,
     ) -> dict:
+        if sync_refs:
+            await self.sync_reference_data()
+            
         report_type = self._detect_report_type(filename, report_type)
 
         xls = pd.ExcelFile(io.BytesIO(content))
