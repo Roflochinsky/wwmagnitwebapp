@@ -153,12 +153,19 @@ class ReportParser:
             return hint
 
         lower = filename.lower()
-        if "report_8" in lower or "report8" in lower:
-            return "report8"
-        if "report_10" in lower or "report10" in lower:
-            return "report10"
-        if "report_11" in lower or "report11" in lower or "aa_ble" in lower:
+        
+        # Report 11 (BLE Logs) headers
+        # Check for "11_", "ble", "aa_ble" (latin/cyrillic safe)
+        if any(m in lower for m in ["report_11", "report11", "aa_ble", "ble", "11_otchet", "11_отчет", "11_"]):
             return "report11"
+
+        # Report 8 (Shifts)
+        if any(m in lower for m in ["report_8", "report8", "8_otchet", "8_отчет", "8_"]):
+            return "report8"
+
+        # Report 10 (Downtime) is the default, but check explicitly too
+        if any(m in lower for m in ["report_10", "report10", "10_otchet", "10_отчет", "10_"]):
+            return "report10"
 
         return "report10"
 
