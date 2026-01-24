@@ -126,7 +126,18 @@ class DriveService:
         ).execute()
         
         values = result.get("values", [])
-        if not values:
+        if not values or len(values) < 2:
             return pd.DataFrame()
-            
-        return pd.DataFrame(values[1:], columns=values[0])
+        
+        # Google Sheets может вернуть строки разной длины — выравниваем
+        headers = values[0]
+        num_cols = len(headers)
+        
+        # Дополняем короткие строки пустыми значениями
+        rows = []
+        for row in values[1:]:
+            padded_row = row + [''] * (num_cols - len(row))
+            rows.append(padded_row[:num_cols])  # Обрезаем лишние колонки
+        
+        return pd.DataFrame(rows, columns=headers)
+
