@@ -68,6 +68,8 @@ class DriveService:
                     q=query,
                     fields="files(id, name, createdTime, modifiedTime)",
                     orderBy="modifiedTime desc",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
                 )
                 .execute()
             )
