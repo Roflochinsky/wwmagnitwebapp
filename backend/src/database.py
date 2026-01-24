@@ -9,6 +9,11 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     future=True,
+    # Supabase Pooler (pgbouncer) не поддерживает prepared statements
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    },
 )
 
 async_session = async_sessionmaker(
