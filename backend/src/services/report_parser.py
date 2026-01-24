@@ -114,9 +114,17 @@ class ReportParser:
         self,
         content: bytes,
         filename: str,
+        drive_file_id: Optional[str] = None,
         report_type: str = "auto",
         sync_refs: bool = True,
     ) -> dict:
+        # Проверка на дубликаты (если передан реальный ID)
+        if drive_file_id:
+            stmt = select(ProcessedFile).where(ProcessedFile.file_id == drive_file_id)
+            res = await self.db.execute(stmt)
+            if res.scalar_one_or_none():
+                return {"report_type": "skipped", "records_count": 0, "status": "duplicate"}
+
         if sync_refs:
             await self.sync_reference_data()
             
@@ -136,8 +144,11 @@ class ReportParser:
         else:
             raise ValueError(f"Неизвестный тип отчёта: {report_type}")
 
+        # Используем реальный ID файла или генерируем уникальный (для тестов)
+        final_file_id = drive_file_id if drive_file_id else f"{filename}_{datetime.now().timestamp()}"
+
         processed = ProcessedFile(
-            file_id=f"{filename}_{datetime.now().timestamp()}",
+            file_id=final_file_id,
             filename=filename,
             report_type=report_type,
             processed_at=datetime.now(),
@@ -146,7 +157,7 @@ class ReportParser:
         self.db.add(processed)
         await self.db.commit()
 
-        return {"report_type": report_type, "records_count": records_count}
+        return {"report_type": report_type, "records_count": records_count, "status": "processed"}
 
     def _detect_report_type(self, filename: str, hint: str) -> str:
         if hint != "auto":

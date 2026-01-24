@@ -30,11 +30,12 @@ async def sync_from_drive(db: AsyncSession = Depends(get_db)):
         
         try:
             content = drive.download_file(file_id)
-            result = await parser.parse_and_save(content, filename, sync_refs=False)
+            result = await parser.parse_and_save(content, filename, drive_file_id=file_id, sync_refs=False)
             results.append({
                 "filename": filename,
                 "report_type": result["report_type"],
-                "records": result["records_count"]
+                "records": result["records_count"],
+                "status": result.get("status", "unknown")
             })
         except Exception as e:
             errors.append({"filename": filename, "error": str(e)})
