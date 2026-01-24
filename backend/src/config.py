@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     google_drive_folder_id: str = ""  # Можно через запятую: "id1,id2"
     google_credentials_path: str = "./credentials.json"
     google_token_path: str = "./token.json"
+    
+    # Google Sheets ID
+    sheet_id_ble_journal: str = ""
+    sheet_id_people_mapping: str = ""
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     debug: bool = True

@@ -97,3 +97,35 @@ class DriveService:
             .get(fileId=file_id, fields="id, name, createdTime, modifiedTime, size")
             .execute()
         )
+
+    def download_sheet_as_df(self, spreadsheet_id: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
+        """Скачать Google Sheet как Pandas DataFrame"""
+        if not spreadsheet_id:
+            return pd.DataFrame()
+            
+        settings = get_settings()
+        creds = None
+        import os
+        if os.path.exists(settings.google_token_path):
+            from google.oauth2.credentials import Credentials
+            creds = Credentials.from_authorized_user_file(settings.google_token_path, self.SCOPES)
+        elif os.path.exists(settings.google_credentials_path):
+            creds = service_account.Credentials.from_service_account_file(
+                settings.google_credentials_path,
+                scopes=self.SCOPES,
+            )
+            
+        # Для Sheets передаем scopes в credentials при создании, если нужно
+        # Но обычно Drive Readonly хватает для экспорта
+        service = build("sheets", "v4", credentials=creds)
+        
+        result = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=sheet_name or "A1:Z1000"
+        ).execute()
+        
+        values = result.get("values", [])
+        if not values:
+            return pd.DataFrame()
+            
+        return pd.DataFrame(values[1:], columns=values[0])
