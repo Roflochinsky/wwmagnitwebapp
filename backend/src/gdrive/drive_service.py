@@ -19,36 +19,60 @@ class DriveService:
 
     def _get_service(self):
         if self._service is None:
-            credentials = service_account.Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=self.SCOPES,
-            )
-            self._service = build("drive", "v3", credentials=credentials)
+            settings = get_settings()
+            creds = None
+            
+            # Пробуем загрузить токен (OAuth2 User flow)
+            import os
+            if os.path.exists(settings.google_token_path):
+                from google.oauth2.credentials import Credentials
+                creds = Credentials.from_authorized_user_file(settings.google_token_path, self.SCOPES)
+            
+            # Если токена нет, пробуем Service Account
+            if (not creds or not creds.valid) and os.path.exists(settings.google_credentials_path):
+                creds = service_account.Credentials.from_service_account_file(
+                    settings.google_credentials_path,
+                    scopes=self.SCOPES,
+                )
+            
+            if not creds:
+                raise ValueError("Не найдены ни token.json, ни credentials.json")
+                
+            self._service = build("drive", "v3", credentials=creds)
         return self._service
 
-    def list_excel_files(self, folder_id: Optional[str] = None) -> list:
-        """Список Excel-файлов в папке"""
+    def get_folder_ids(self) -> list[str]:
+        """Парсит список папок из конфига"""
+        if not self.folder_id:
+            return []
+        return [fid.strip() for fid in self.folder_id.split(",") if fid.strip()]
+
+    def list_excel_files(self, folder_ids: Optional[list[str]] = None) -> list:
+        """Список Excel-файлов в указанных папках"""
         service = self._get_service()
-        target_folder = folder_id or self.folder_id
-
-        query = (
-            f"'{target_folder}' in parents and "
-            "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' "
-            "or mimeType='application/vnd.ms-excel') "
-            "and trashed=false"
-        )
-
-        results = (
-            service.files()
-            .list(
-                q=query,
-                fields="files(id, name, createdTime, modifiedTime)",
-                orderBy="modifiedTime desc",
+        target_folders = folder_ids or self.get_folder_ids()
+        
+        all_files = []
+        for fid in target_folders:
+            query = (
+                f"'{fid}' in parents and "
+                "(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' "
+                "or mimeType='application/vnd.ms-excel') "
+                "and trashed=false"
             )
-            .execute()
-        )
 
-        return results.get("files", [])
+            results = (
+                service.files()
+                .list(
+                    q=query,
+                    fields="files(id, name, createdTime, modifiedTime)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute()
+            )
+            all_files.extend(results.get("files", []))
+
+        return all_files
 
     def download_file(self, file_id: str) -> bytes:
         """Скачать файл по ID"""
