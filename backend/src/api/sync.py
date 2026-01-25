@@ -38,6 +38,8 @@ async def sync_from_drive(db: AsyncSession = Depends(get_db)):
                 "status": result.get("status", "unknown")
             })
         except Exception as e:
+            # КРИТИЧНО: rollback чтобы следующий файл мог обработаться
+            await db.rollback()
             errors.append({"filename": filename, "error": str(e)})
     
     # Синхронизация справочников один раз в конце

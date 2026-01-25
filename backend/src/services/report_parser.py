@@ -20,6 +20,7 @@ class ReportParser:
         self.db = db
         self.drive_service = DriveService()
         self.settings = get_settings()
+        self._employee_cache = {}  # tn_number -> EmployeeId
 
     async def seed_zones(self):
         """Начальная загрузка справочника зон из документации"""
@@ -212,29 +213,43 @@ class ReportParser:
 
         return "report10"
 
-    async def _get_or_create_employee(self, tn_number: int, name: str) -> Employee:
-        stmt = select(Employee).where(Employee.tn_number == tn_number)
+    async def _load_employee_cache(self):
+        """Предзагрузка всех сотрудников в кеш"""
+        stmt = select(Employee.id, Employee.tn_number)
         result = await self.db.execute(stmt)
-        employee = result.scalar_one_or_none()
+        for row in result:
+            self._employee_cache[row.tn_number] = row.id
 
-        if not employee:
+    async def _get_or_create_employee_id(self, tn_number: int, name: str) -> int:
+        """Получает ID сотрудника из кеша или создает нового"""
+        if tn_number in self._employee_cache:
+            return self._employee_cache[tn_number]
+
+        # Если нет в кеше, ищем в БД (на случай если добавили в процессе)
+        stmt = select(Employee.id).where(Employee.tn_number == tn_number)
+        result = await self.db.execute(stmt)
+        emp_id = result.scalar_one_or_none()
+
+        if not emp_id:
             employee = Employee(tn_number=tn_number, name=name)
             self.db.add(employee)
             await self.db.flush()
+            emp_id = employee.id
 
-        return employee
+        self._employee_cache[tn_number] = emp_id
+        return emp_id
 
     async def _parse_report8(self, df: pd.DataFrame, processed_file_id: int) -> int:
-        """Парсинг Report 8 (смены)"""
+        """Парсинг Report 8 (смены) с использованием Bulk Insert"""
+        await self._load_employee_cache()
         df = self._normalize_columns(df)
-        count = 0
-
-        for _, row in df.iterrows():
+        records = df.to_dict('records')
+        
+        objs = []
+        for row in records:
             try:
                 tn = self._extract_tn(row)
-                name = str(row.get("ФИО", row.get("fio", "Unknown")))
-                if not tn:
-                    continue
+                if not tn: continue
 
                 date_val = self._parse_date(row.get("date"))
                 date_begin = self._parse_datetime(row.get("date_begin"))
@@ -243,10 +258,10 @@ class ReportParser:
                 if not date_val or not date_begin or not date_end:
                     continue
 
-                employee = await self._get_or_create_employee(tn, name)
+                emp_id = await self._get_or_create_employee_id(tn, str(row.get("ФИО", "Unknown")))
 
-                shift = Shift(
-                    employee_id=employee.id,
+                objs.append(Shift(
+                    employee_id=emp_id,
                     processed_file_id=processed_file_id,
                     date=date_val,
                     date_begin=date_begin,
@@ -257,26 +272,26 @@ class ReportParser:
                     full_go_seconds=self._to_int(row.get("full_go_seconds")),
                     full_idle_seconds=self._to_int(row.get("full_idle_seconds")),
                     full_work_seconds=self._to_int(row.get("full_work_seconds")),
-                )
-                self.db.add(shift)
-                count += 1
+                ))
             except Exception:
                 continue
 
-        await self.db.commit()
-        return count
+        if objs:
+            self.db.add_all(objs)
+            await self.db.commit()
+        return len(objs)
 
     async def _parse_report10(self, df: pd.DataFrame, processed_file_id: int) -> int:
-        """Парсинг Report 10 (простои)"""
+        """Парсинг Report 10 (простои) с использованием Bulk Insert"""
+        await self._load_employee_cache()
         df = self._normalize_columns(df)
-        count = 0
-
-        for _, row in df.iterrows():
+        records = df.to_dict('records')
+        
+        objs = []
+        for row in records:
             try:
                 tn = self._extract_tn(row)
-                name = str(row.get("ФИО", row.get("fio", "Unknown")))
-                if not tn:
-                    continue
+                if not tn: continue
 
                 dt_start = self._parse_datetime(row.get("dt_start"))
                 dt_end = self._parse_datetime(row.get("dt_end"))
@@ -284,83 +299,65 @@ class ReportParser:
                 if not dt_start or not dt_end:
                     continue
 
-                employee = await self._get_or_create_employee(tn, name)
+                emp_id = await self._get_or_create_employee_id(tn, str(row.get("ФИО", "Unknown")))
 
-                downtime = Downtime(
-                    employee_id=employee.id,
+                objs.append(Downtime(
+                    employee_id=emp_id,
                     processed_file_id=processed_file_id,
                     dt_start=dt_start,
                     dt_end=dt_end,
                     duration_minutes=self._to_int(row.get("duration", 0)),
                     ble_tag_id=self._to_int(row.get("chosen_ble_tag_number")),
-                )
-                self.db.add(downtime)
-                count += 1
+                ))
             except Exception:
                 continue
 
-        await self.db.commit()
-        return count
+        if objs:
+            self.db.add_all(objs)
+            await self.db.commit()
+        return len(objs)
 
     async def _parse_report11(self, df: pd.DataFrame, processed_file_id: int) -> int:
-        """Парсинг Report 11 (BLE логи)"""
+        """Парсинг Report 11 (BLE логи) с использованием Bulk Insert"""
+        await self._load_employee_cache()
         df = self._normalize_columns(df)
-        logger.info(f"Report11: normalized columns = {list(df.columns)[:10]}")
-        count = 0
-        skipped_no_tn = 0
-        skipped_no_date = 0
-        errors = 0
-
-        for idx, row in df.iterrows():
+        records = df.to_dict('records')
+        
+        objs = []
+        for row in records:
             try:
                 tn = self._extract_tn(row)
-                if not tn:
-                    skipped_no_tn += 1
-                    if idx < 3:  # Логируем первые строки для отладки
-                        logger.debug(f"Row {idx}: TN not found in {dict(row)}")
-                    continue
+                if not tn: continue
                 
                 shift_day = self._parse_date(row.get("shift_day"))
-                time_only = self._parse_datetime(row.get("time_only"))
+                time_only_raw = row.get("time_only")
+                time_only = self._parse_datetime(time_only_raw)
 
                 if not shift_day or not time_only:
-                    skipped_no_date += 1
-                    if idx < 3:
-                        logger.debug(f"Row {idx}: shift_day={shift_day}, time_only={time_only}")
                     continue
 
-                # Проверяем ble_tag — обязательное поле
                 ble_tag_val = self._to_int(row.get("ble_tag"))
-                zone_id_val = self._to_int(row.get("zone_id"))
-                
                 if ble_tag_val is None:
-                    skipped_no_tn += 1  # используем как счётчик пропущенных
                     continue
 
-                employee = await self._get_or_create_employee(tn, "Unknown")
-
-                # Комбинируем shift_day + time_only для полного datetime
+                emp_id = await self._get_or_create_employee_id(tn, "Unknown")
                 full_time = datetime.combine(shift_day, time_only.time())
 
-                ble_log = BleLog(
-                    employee_id=employee.id,
+                objs.append(BleLog(
+                    employee_id=emp_id,
                     processed_file_id=processed_file_id,
                     shift_day=shift_day,
                     time_only=full_time,
                     ble_tag=ble_tag_val,
-                    zone_id=zone_id_val or 1,  # default zone если пустой
-                )
-                self.db.add(ble_log)
-                count += 1
-            except Exception as e:
-                errors += 1
-                if errors <= 3:
-                    logger.error(f"Row {idx} error: {e}")
+                    zone_id=self._to_int(row.get("zone_id")) or 1,
+                ))
+            except Exception:
                 continue
 
-        logger.info(f"Report11 summary: count={count}, skipped_no_tn={skipped_no_tn}, skipped_no_date={skipped_no_date}, errors={errors}")
-        await self.db.commit()
-        return count
+        if objs:
+            self.db.add_all(objs)
+            await self.db.commit()
+        return len(objs)
 
     def _normalize_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         rename_map = {}
