@@ -141,6 +141,9 @@ class ReportParser:
             
         report_type = self._detect_report_type(filename, report_type)
 
+        # Инициализируем ExcelFile перед работой с листами
+        xls = pd.ExcelFile(io.BytesIO(content))
+        
         # Все отчеты (8, 10, 11) содержат данные на ВТОРОМ листе (index 1).
         # Если второго листа нет, берем первый.
         sheet_index = 1 
