@@ -329,6 +329,14 @@ class ReportParser:
                         logger.debug(f"Row {idx}: shift_day={shift_day}, time_only={time_only}")
                     continue
 
+                # Проверяем ble_tag — обязательное поле
+                ble_tag_val = self._to_int(row.get("ble_tag"))
+                zone_id_val = self._to_int(row.get("zone_id"))
+                
+                if ble_tag_val is None:
+                    skipped_no_tn += 1  # используем как счётчик пропущенных
+                    continue
+
                 employee = await self._get_or_create_employee(tn, "Unknown")
 
                 # Комбинируем shift_day + time_only для полного datetime
@@ -339,8 +347,8 @@ class ReportParser:
                     processed_file_id=processed_file_id,
                     shift_day=shift_day,
                     time_only=full_time,
-                    ble_tag=self._to_int(row.get("ble_tag", 0)),
-                    zone_id=self._to_int(row.get("zone_id")),
+                    ble_tag=ble_tag_val,
+                    zone_id=zone_id_val or 1,  # default zone если пустой
                 )
                 self.db.add(ble_log)
                 count += 1
