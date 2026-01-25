@@ -141,8 +141,9 @@ class ReportParser:
             
         report_type = self._detect_report_type(filename, report_type)
 
-        xls = pd.ExcelFile(io.BytesIO(content))
-        sheet_index = 0 if report_type == "report11" else 1
+        # Все отчеты (8, 10, 11) содержат данные на ВТОРОМ листе (index 1).
+        # Если второго листа нет, берем первый.
+        sheet_index = 1 
         sheet_name = xls.sheet_names[sheet_index] if len(xls.sheet_names) > sheet_index else xls.sheet_names[0]
         df = xls.parse(sheet_name)
 
