@@ -331,11 +331,14 @@ class ReportParser:
 
                 employee = await self._get_or_create_employee(tn, "Unknown")
 
+                # Комбинируем shift_day + time_only для полного datetime
+                full_time = datetime.combine(shift_day, time_only.time())
+
                 ble_log = BleLog(
                     employee_id=employee.id,
                     processed_file_id=processed_file_id,
                     shift_day=shift_day,
-                    time_only=time_only,
+                    time_only=full_time,
                     ble_tag=self._to_int(row.get("ble_tag", 0)),
                     zone_id=self._to_int(row.get("zone_id")),
                 )
@@ -366,13 +369,16 @@ class ReportParser:
             "duration": "duration",
             "длительность": "duration",
             "chosen_ble_tag_number": "chosen_ble_tag_number",
-            # Report 11 mappings (fixes 0 records issue)
+            # Report 11 mappings - исправленные на реальные названия из Excel
             "день смены": "shift_day",
             "shift_day": "shift_day",
+            "время на объекте": "time_only",  # ИСПРАВЛЕНО: было "время"
             "время": "time_only",
             "time_only": "time_only",
+            "metka": "ble_tag",               # ДОБАВЛЕНО: реальное название
             "метка": "ble_tag",
             "ble_tag": "ble_tag",
+            "zona": "zone_id",                # ДОБАВЛЕНО: реальное название
             "зона": "zone_id",
             "zone_id": "zone_id",
         }
@@ -406,6 +412,11 @@ class ReportParser:
         if isinstance(val, datetime):
             return val
         try:
+            str_val = str(val).strip()
+            # Обработка формата HH:MM (только время без даты)
+            if re.match(r'^\d{1,2}:\d{2}$', str_val):
+                # Парсим как время, добавляем фиктивную дату (будет заменена позже)
+                return datetime.strptime(str_val, '%H:%M')
             return pd.to_datetime(val, dayfirst=True)
         except Exception:
             return None
