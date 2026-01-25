@@ -1,5 +1,6 @@
 import io
 import re
+import logging
 from datetime import datetime
 from typing import Optional
 import pandas as pd
@@ -8,6 +9,8 @@ from sqlalchemy import select, update, insert
 from src.models import Employee, Shift, Downtime, BleLog, BleTag, Zone, ProcessedFile
 from src.gdrive import DriveService
 from src.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class ReportParser:
@@ -130,16 +133,21 @@ class ReportParser:
         if existing_file:
             # Если хеш совпадает — это полный дубль, пропускаем
             if existing_file.content_hash == content_hash:
+                logger.info(f"SKIP: {filename} - дубликат (хеш совпадает)")
                 return {"report_type": "skipped", "records_count": 0, "status": "duplicate"}
             
             # Если хеш отличается — удаляем старую запись (Cascade удалит и данные)
+            logger.info(f"OVERWRITE: {filename} - хеш изменился, перезаписываем")
             await self.db.delete(existing_file)
             await self.db.flush()
+        else:
+            logger.info(f"NEW FILE: {filename}")
 
         if sync_refs:
             await self.sync_reference_data()
             
         report_type = self._detect_report_type(filename, report_type)
+        logger.info(f"Report type detected: {report_type} for {filename}")
 
         # Инициализируем ExcelFile перед работой с листами
         xls = pd.ExcelFile(io.BytesIO(content))
@@ -148,7 +156,11 @@ class ReportParser:
         # Если второго листа нет, берем первый.
         sheet_index = 1 
         sheet_name = xls.sheet_names[sheet_index] if len(xls.sheet_names) > sheet_index else xls.sheet_names[0]
+        logger.info(f"Reading sheet '{sheet_name}' (index {sheet_index}) from {filename}")
         df = xls.parse(sheet_name)
+        logger.info(f"DataFrame shape: {df.shape}, columns: {list(df.columns)[:10]}...")
+        if not df.empty:
+            logger.info(f"First row sample: {dict(df.iloc[0])}")
 
         # Используем content_hash как уникальный ID для идемпотентности, 
         # или drive_file_id если он есть, но для внутреннего учета.
@@ -293,18 +305,28 @@ class ReportParser:
     async def _parse_report11(self, df: pd.DataFrame, processed_file_id: int) -> int:
         """Парсинг Report 11 (BLE логи)"""
         df = self._normalize_columns(df)
+        logger.info(f"Report11: normalized columns = {list(df.columns)[:10]}")
         count = 0
+        skipped_no_tn = 0
+        skipped_no_date = 0
+        errors = 0
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             try:
                 tn = self._extract_tn(row)
                 if not tn:
+                    skipped_no_tn += 1
+                    if idx < 3:  # Логируем первые строки для отладки
+                        logger.debug(f"Row {idx}: TN not found in {dict(row)}")
                     continue
                 
                 shift_day = self._parse_date(row.get("shift_day"))
                 time_only = self._parse_datetime(row.get("time_only"))
 
                 if not shift_day or not time_only:
+                    skipped_no_date += 1
+                    if idx < 3:
+                        logger.debug(f"Row {idx}: shift_day={shift_day}, time_only={time_only}")
                     continue
 
                 employee = await self._get_or_create_employee(tn, "Unknown")
@@ -319,9 +341,13 @@ class ReportParser:
                 )
                 self.db.add(ble_log)
                 count += 1
-            except Exception:
+            except Exception as e:
+                errors += 1
+                if errors <= 3:
+                    logger.error(f"Row {idx} error: {e}")
                 continue
 
+        logger.info(f"Report11 summary: count={count}, skipped_no_tn={skipped_no_tn}, skipped_no_date={skipped_no_date}, errors={errors}")
         await self.db.commit()
         return count
 

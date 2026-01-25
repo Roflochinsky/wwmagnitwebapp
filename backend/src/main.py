@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -6,6 +7,13 @@ from src.database import engine, Base
 from src.api import health, reports, employees, stats, sync
 from src.scheduler import start_scheduler, stop_scheduler
 
+# Настройка логирования для отладки
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+# Включаем DEBUG для парсера
+logging.getLogger("src.services.report_parser").setLevel(logging.DEBUG)
 
 settings = get_settings()
 
