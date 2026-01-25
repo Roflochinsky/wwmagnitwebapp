@@ -118,12 +118,23 @@ class ReportParser:
         report_type: str = "auto",
         sync_refs: bool = True,
     ) -> dict:
-        # Проверка на дубликаты (если передан реальный ID)
-        if drive_file_id:
-            stmt = select(ProcessedFile).where(ProcessedFile.file_id == drive_file_id)
-            res = await self.db.execute(stmt)
-            if res.scalar_one_or_none():
+        import hashlib
+        content_hash = hashlib.md5(content).hexdigest()
+
+        # 1. Ищем существующий файл по ИМЕНИ (так как при перезаливке ID может не меняться или меняться)
+        # Нам нужно перезаписывать данные, если имя совпадает, а контент разный.
+        stmt = select(ProcessedFile).where(ProcessedFile.filename == filename)
+        res = await self.db.execute(stmt)
+        existing_file = res.scalar_one_or_none()
+
+        if existing_file:
+            # Если хеш совпадает — это полный дубль, пропускаем
+            if existing_file.content_hash == content_hash:
                 return {"report_type": "skipped", "records_count": 0, "status": "duplicate"}
+            
+            # Если хеш отличается — удаляем старую запись (Cascade удалит и данные)
+            await self.db.delete(existing_file)
+            await self.db.flush()
 
         if sync_refs:
             await self.sync_reference_data()
@@ -135,26 +146,31 @@ class ReportParser:
         sheet_name = xls.sheet_names[sheet_index] if len(xls.sheet_names) > sheet_index else xls.sheet_names[0]
         df = xls.parse(sheet_name)
 
-        if report_type == "report8":
-            records_count = await self._parse_report8(df)
-        elif report_type == "report10":
-            records_count = await self._parse_report10(df)
-        elif report_type == "report11":
-            records_count = await self._parse_report11(df)
-        else:
-            raise ValueError(f"Неизвестный тип отчёта: {report_type}")
-
-        # Используем реальный ID файла или генерируем уникальный (для тестов)
+        # Используем content_hash как уникальный ID для идемпотентности, 
+        # или drive_file_id если он есть, но для внутреннего учета.
         final_file_id = drive_file_id if drive_file_id else f"{filename}_{datetime.now().timestamp()}"
 
         processed = ProcessedFile(
             file_id=final_file_id,
             filename=filename,
+            content_hash=content_hash,
             report_type=report_type,
             processed_at=datetime.now(),
-            records_count=records_count,
+            records_count=0, # Будет обновлено ниже
         )
         self.db.add(processed)
+        await self.db.flush()  # Чтобы получить processed.id
+
+        if report_type == "report8":
+            records_count = await self._parse_report8(df, processed.id)
+        elif report_type == "report10":
+            records_count = await self._parse_report10(df, processed.id)
+        elif report_type == "report11":
+            records_count = await self._parse_report11(df, processed.id)
+        else:
+            raise ValueError(f"Неизвестный тип отчёта: {report_type}")
+
+        processed.records_count = records_count
         await self.db.commit()
 
         return {"report_type": report_type, "records_count": records_count, "status": "processed"}
@@ -192,7 +208,7 @@ class ReportParser:
 
         return employee
 
-    async def _parse_report8(self, df: pd.DataFrame) -> int:
+    async def _parse_report8(self, df: pd.DataFrame, processed_file_id: int) -> int:
         """Парсинг Report 8 (смены)"""
         df = self._normalize_columns(df)
         count = 0
@@ -208,7 +224,6 @@ class ReportParser:
                 date_begin = self._parse_datetime(row.get("date_begin"))
                 date_end = self._parse_datetime(row.get("date_end"))
 
-                # Пропускаем, если нет обязательных полей
                 if not date_val or not date_begin or not date_end:
                     continue
 
@@ -216,6 +231,7 @@ class ReportParser:
 
                 shift = Shift(
                     employee_id=employee.id,
+                    processed_file_id=processed_file_id,
                     date=date_val,
                     date_begin=date_begin,
                     date_end=date_end,
@@ -234,7 +250,7 @@ class ReportParser:
         await self.db.commit()
         return count
 
-    async def _parse_report10(self, df: pd.DataFrame) -> int:
+    async def _parse_report10(self, df: pd.DataFrame, processed_file_id: int) -> int:
         """Парсинг Report 10 (простои)"""
         df = self._normalize_columns(df)
         count = 0
@@ -249,7 +265,6 @@ class ReportParser:
                 dt_start = self._parse_datetime(row.get("dt_start"))
                 dt_end = self._parse_datetime(row.get("dt_end"))
 
-                # Пропускаем, если нет дат (вызывает IntegrityError)
                 if not dt_start or not dt_end:
                     continue
 
@@ -257,6 +272,7 @@ class ReportParser:
 
                 downtime = Downtime(
                     employee_id=employee.id,
+                    processed_file_id=processed_file_id,
                     dt_start=dt_start,
                     dt_end=dt_end,
                     duration_minutes=self._to_int(row.get("duration", 0)),
@@ -270,7 +286,7 @@ class ReportParser:
         await self.db.commit()
         return count
 
-    async def _parse_report11(self, df: pd.DataFrame) -> int:
+    async def _parse_report11(self, df: pd.DataFrame, processed_file_id: int) -> int:
         """Парсинг Report 11 (BLE логи)"""
         df = self._normalize_columns(df)
         count = 0
@@ -281,8 +297,8 @@ class ReportParser:
                 if not tn:
                     continue
                 
-                shift_day = self._parse_date(row.get("shift_day", row.get("день смены")))
-                time_only = self._parse_datetime(row.get("time_only", row.get("время")))
+                shift_day = self._parse_date(row.get("shift_day"))
+                time_only = self._parse_datetime(row.get("time_only"))
 
                 if not shift_day or not time_only:
                     continue
@@ -291,10 +307,11 @@ class ReportParser:
 
                 ble_log = BleLog(
                     employee_id=employee.id,
+                    processed_file_id=processed_file_id,
                     shift_day=shift_day,
                     time_only=time_only,
-                    ble_tag=self._to_int(row.get("ble_tag", row.get("метка", 0))),
-                    zone_id=self._to_int(row.get("zone_id", row.get("зона"))),
+                    ble_tag=self._to_int(row.get("ble_tag", 0)),
+                    zone_id=self._to_int(row.get("zone_id")),
                 )
                 self.db.add(ble_log)
                 count += 1
@@ -319,6 +336,15 @@ class ReportParser:
             "duration": "duration",
             "длительность": "duration",
             "chosen_ble_tag_number": "chosen_ble_tag_number",
+            # Report 11 mappings (fixes 0 records issue)
+            "день смены": "shift_day",
+            "shift_day": "shift_day",
+            "время": "time_only",
+            "time_only": "time_only",
+            "метка": "ble_tag",
+            "ble_tag": "ble_tag",
+            "зона": "zone_id",
+            "zone_id": "zone_id",
         }
 
         for key, target in mappings.items():
