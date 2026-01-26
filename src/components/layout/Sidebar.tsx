@@ -1,18 +1,29 @@
 import React, { useContext } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { PieChart, Activity, ArrowLeftRight, LayoutGrid, LogOut } from 'lucide-react';
 import logo from '../../assets/logoByCo.svg';
-import type { PageType } from '../../context/PageContext';
 import { PageContext } from '../../context/PageContext';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
-    const { currentPage, setCurrentPage, isSidebarCollapsed } = useContext(PageContext);
+    const { isSidebarCollapsed } = useContext(PageContext);
+    const { logout } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
 
-    const menuItems: { icon: typeof PieChart; label: string; page: PageType }[] = [
-        { icon: PieChart, label: 'Аналитика', page: 'analytics' },
-        { icon: Activity, label: 'Простои', page: 'downtime' },
-        { icon: ArrowLeftRight, label: 'Перемещение', page: 'movement' },
-        { icon: LayoutGrid, label: 'Пользователи', page: 'users' },
+    const menuItems = [
+        { icon: PieChart, label: 'Аналитика', path: '/analytics' },
+        { icon: Activity, label: 'Простои', path: '/downtime' },
+        { icon: ArrowLeftRight, label: 'Перемещение', path: '/movement' },
+        { icon: LayoutGrid, label: 'Пользователи', path: '/users' },
     ];
+
+    const currentPath = location.pathname === '/' ? '/analytics' : location.pathname;
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
 
     return (
         <div
@@ -29,9 +40,9 @@ const Sidebar = () => {
                         {menuItems.map((item) => (
                             <button
                                 key={item.label}
-                                onClick={() => setCurrentPage(item.page)}
+                                onClick={() => navigate(item.path)}
                                 title={isSidebarCollapsed ? item.label : undefined}
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'} py-3 rounded-xl text-sm font-medium transition-all duration-300 ${currentPage === item.page
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'} py-3 rounded-xl text-sm font-medium transition-all duration-300 ${currentPath === item.path
                                     ? 'bg-gray-50 text-gray-900'
                                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                                     }`}
@@ -39,12 +50,12 @@ const Sidebar = () => {
                                 <div className={`flex items-center transition-all duration-300 ${isSidebarCollapsed ? 'justify-center w-full gap-0' : 'gap-3'}`}>
                                     <item.icon
                                         size={20}
-                                        className={`transition-colors duration-300 ${currentPage === item.page ? "text-gray-900" : "text-gray-400"}`}
+                                        className={`transition-colors duration-300 ${currentPath === item.path ? "text-gray-900" : "text-gray-400"}`}
                                         strokeWidth={1.5}
                                     />
                                     <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isSidebarCollapsed ? 'w-0 opacity-0' : 'w-40 opacity-100'}`}>{item.label}</span>
                                 </div>
-                                <div className={`h-1.5 rounded-full bg-teal-500 transition-all duration-300 ${currentPage === item.page && !isSidebarCollapsed ? 'w-1.5 opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`} />
+                                <div className={`h-1.5 rounded-full bg-teal-500 transition-all duration-300 ${currentPath === item.path && !isSidebarCollapsed ? 'w-1.5 opacity-100 scale-100' : 'w-0 opacity-0 scale-0'}`} />
                             </button>
                         ))}
                     </div>
@@ -53,6 +64,7 @@ const Sidebar = () => {
 
             <div className="pt-6 border-t border-gray-100 space-y-1">
                 <button
+                    onClick={handleLogout}
                     title={isSidebarCollapsed ? "Выход" : undefined}
                     className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors`}
                 >

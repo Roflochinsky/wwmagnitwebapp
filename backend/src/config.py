@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     api_port: int = 8000
     debug: bool = True
 
+    # Auth
+    secret_key: str = "CHANGE_ME_IN_PROD_SECRET_KEY_12345"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

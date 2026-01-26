@@ -1,23 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, MoreHorizontal, TrendingUp, TrendingDown } from 'lucide-react';
+import { employeesService } from '../../api/services/employees';
+import type { Employee } from '../../api/services/employees';
 
-const usersData = [
-    { id: 1, name: 'Алексей Попов', department: 'Цех #1', activity: 98, downtime: 5, status: 'online', trend: 'up' },
-    { id: 2, name: 'Мария Иванова', department: 'Цех #2', activity: 96, downtime: 8, status: 'online', trend: 'up' },
-    { id: 3, name: 'Иван Кузнецов', department: 'Склад', activity: 94, downtime: 12, status: 'online', trend: 'down' },
-    { id: 4, name: 'Елена Смирнова', department: 'Офис', activity: 92, downtime: 15, status: 'offline', trend: 'up' },
-    { id: 5, name: 'Дмитрий Соколов', department: 'Цех #1', activity: 88, downtime: 22, status: 'online', trend: 'down' },
-    { id: 6, name: 'Анна Морозова', department: 'Цех #2', activity: 85, downtime: 25, status: 'online', trend: 'up' },
-    { id: 7, name: 'Сергей Лебедев', department: 'Цех #1', activity: 62, downtime: 95, status: 'online', trend: 'down' },
-];
+// Extended type for UI logic, should ideally come from backend or computed
+interface EmployeeUI extends Employee {
+    activity: number;
+    downtime: number;
+    status: 'online' | 'offline';
+    trend: 'up' | 'down';
+}
 
-const UserTable = ({ onUserSelect }: { onUserSelect: (user: any) => void }) => {
+const UserTable = ({ onUserSelect }: { onUserSelect: (user: EmployeeUI) => void }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [employees, setEmployees] = useState<EmployeeUI[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const filteredUsers = usersData.filter(user =>
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            try {
+                const data = await employeesService.getAll();
+                // Transform data for UI TODO: Get real activity stats
+                const mapped: EmployeeUI[] = data.map(emp => ({
+                    ...emp,
+                    activity: Math.floor(Math.random() * 100), // Mock for now
+                    downtime: Math.floor(Math.random() * 60),  // Mock for now
+                    status: Math.random() > 0.2 ? 'online' : 'offline', // Mock
+                    trend: Math.random() > 0.5 ? 'up' : 'down' // Mock
+                }));
+                setEmployees(mapped);
+            } catch (error) {
+                console.error("Failed to fetch employees", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchEmployees();
+    }, []);
+
+    const filteredUsers = employees.filter(user =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.department.toLowerCase().includes(searchTerm.toLowerCase())
+        (user.department && user.department.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    if (loading) {
+        return <div className="bg-white p-6 rounded-3xl text-center text-gray-500">Загрузка сотрудников...</div>;
+    }
 
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden flex flex-col h-full">
@@ -109,7 +137,7 @@ const UserTable = ({ onUserSelect }: { onUserSelect: (user: any) => void }) => {
             </div>
 
             <div className="p-4 bg-gray-50/50 border-t border-gray-50 flex items-center justify-between text-xs text-gray-400 font-medium">
-                <div>Показано 1-{filteredUsers.length} из {usersData.length}</div>
+                <div>Показано 1-{filteredUsers.length} из {employees.length}</div>
                 <div className="flex items-center gap-2">
                     <button className="px-3 py-1 bg-white rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors disabled:opacity-50" disabled>Назад</button>
                     <button className="px-3 py-1 bg-white rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">Вперед</button>

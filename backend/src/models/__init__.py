@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from src.database import Base
 
@@ -105,3 +105,14 @@ class ProcessedFile(Base):
     shifts = relationship("Shift", back_populates="processed_file", cascade="all, delete")
     downtimes = relationship("Downtime", back_populates="processed_file", cascade="all, delete")
     ble_logs = relationship("BleLog", back_populates="processed_file", cascade="all, delete")
+
+
+class User(Base):
+    """Пользователи системы"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
