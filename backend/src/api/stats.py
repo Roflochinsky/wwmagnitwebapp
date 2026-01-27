@@ -66,19 +66,63 @@ async def get_activity_stats(
         func.avg(Shift.full_work_percent).label("avg_work"),
         func.avg(Shift.full_idle_percent).label("avg_idle"),
         func.avg(Shift.full_go_percent).label("avg_go"),
+        func.sum(Shift.full_work_seconds).label("sum_work_sec"),
+        func.sum(Shift.full_idle_seconds).label("sum_idle_sec"),
+        func.sum(Shift.full_go_seconds).label("sum_go_sec"),
     ).where(Shift.date.between(date_from, date_to))
 
     result = await db.execute(stmt)
     row = result.one()
+    
+    # Расчет в минутах для "Мин/%"
+    # Активность = Work + Go
+    avg_work = row.avg_work or 0
+    avg_go = row.avg_go or 0
+    avg_idle = row.avg_idle or 0
+    
+    activity_percent = avg_work + avg_go
+    
+    # Приводим к 100% если сумма больше (из-за округлений) или считаем activity как 100 - idle?
+    # User Request: Активность=Work_sec (+ Go_sec в дашборде)
+    # Но для KPI карточек "Мин/%" нам нужны абсолютные значения
+    
+    total_work_sec = row.sum_work_sec or 0
+    total_go_sec = row.sum_go_sec or 0
+    total_idle_sec = row.sum_idle_sec or 0
+    
+    total_activity_sec = total_work_sec + total_go_sec
+    
+    def to_min(seconds):
+        return round(seconds / 60)
 
     return {
         "period": {
             "from": date_from.isoformat(),
             "to": date_to.isoformat(),
         },
-        "avg_work_percent": round(row.avg_work or 0, 2),
-        "avg_idle_percent": round(row.avg_idle or 0, 2),
-        "avg_go_percent": round(row.avg_go or 0, 2),
+        # KPI: Activity
+        "activity": {
+            "percent": round(activity_percent, 1),
+            "minutes": to_min(total_activity_sec)
+        },
+        # KPI: Idle
+        "idle": {
+            "percent": round(avg_idle, 1),
+            "minutes": to_min(total_idle_sec)
+        },
+        # KPI: Work Zone
+        "work_zone": {
+            "percent": round(avg_work, 1),
+            "minutes": to_min(total_work_sec)
+        },
+        # KPI: Go/Rest Zone (если Go считать как отдых/перемещение? Нет, Go это перемещение)
+        # В запросе KPI "Нахождение в зоне отдыха" -> это Idle или отдельная зона?
+        # Пока мапим Go на "Перемещение" или Rest Zone если есть такая логика
+        # Для "Нахождение в зоне отдыха" у нас нет явного поля, используем Idle как базу
+        "start_zone": { # Placeholder name, logic needs clarification if "Rest Zone" != Idle
+             "percent": round(avg_go, 1), # Using Go as 4th card for now
+             "minutes": to_min(total_go_sec)
+        }
     }
 
 

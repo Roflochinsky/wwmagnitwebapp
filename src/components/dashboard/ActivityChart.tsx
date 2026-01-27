@@ -1,19 +1,24 @@
 import React from 'react';
 import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip, YAxis, Cell } from 'recharts';
 
-const data = [
-    { name: 'Пн', value: 85 },
-    { name: 'Вт', value: 92 },
-    { name: 'Ср', value: 78 },
-    { name: 'Чт', value: 88 },
-    { name: 'Пт', value: 65 },
-    { name: 'Сб', value: 45 },
-    { name: 'Вс', value: 30 },
-];
+interface ActivityChartProps {
+    data?: { name: string; value: number }[];
+}
 
-const ActivityChart = () => {
-    const maxValue = Math.max(...data.map(d => d.value));
-    const maxValueIndex = data.findIndex(d => d.value === maxValue);
+const ActivityChart = ({ data = [] }: ActivityChartProps) => {
+    // Fallback if no data
+    const chartData = data.length > 0 ? data : [
+        { name: 'Пн', value: 0 },
+        { name: 'Вт', value: 0 },
+        { name: 'Ср', value: 0 },
+        { name: 'Чт', value: 0 },
+        { name: 'Пт', value: 0 },
+        { name: 'Сб', value: 0 },
+        { name: 'Вс', value: 0 },
+    ];
+
+    const maxValue = Math.max(...chartData.map(d => d.value));
+    const maxValueIndex = chartData.findIndex(d => d.value === maxValue);
 
     return (
         <div className="bg-[#11998e] rounded-3xl p-6 h-full relative overflow-hidden flex flex-col justify-between">
@@ -23,7 +28,7 @@ const ActivityChart = () => {
 
             <div className="flex-1 w-full min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data} barSize={28}>
+                    <BarChart data={chartData} barSize={28}>
                         <defs>
                             <pattern id="stripePattern" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
                                 <rect width="100%" height="100%" fill="#fef3c7" />
@@ -57,7 +62,7 @@ const ActivityChart = () => {
                             radius={[6, 6, 6, 6]}
                             className="transition-all duration-300 hover:opacity-90"
                         >
-                            {data.map((_, index) => (
+                            {chartData.map((_, index) => (
                                 <Cell
                                     key={`cell-${index}`}
                                     fill={index === maxValueIndex ? "url(#stripePattern)" : "#fef3c7"}

@@ -19,7 +19,7 @@ const StatsCard = ({ label, amount, growth, bgClass }: StatsCardProps) => {
             </div>
             <div>
                 <h3 className="text-3xl font-bold text-gray-900 mb-2">{amount}</h3>
-                <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                <p className="text-xs text-gray-500 font-medium" style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
                     <span className="text-green-600">{growth.split(' ')[0]}</span>
                     <span className="opacity-70">{growth.split(' ').slice(1).join(' ')}</span>
                 </p>
