@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: workwatch-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    restart: always
+    volumes:
+      - ./backend/token.json:/app/token.json # Persist tokens if needed
+      # Add other volumes if you need to persist uploaded files
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workwatch-frontend
+    ports:
+      - "80:80"
+    restart: always
+    depends_on:
+      - backend
