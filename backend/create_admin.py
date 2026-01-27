@@ -1,12 +1,12 @@
 import asyncio
 import sys
-from src.database import async_session_maker
+from src.database import async_session
 from src.models import User
 from src.core.security import get_password_hash
 from sqlalchemy import select
 
 async def create_admin(username, password):
-    async with async_session_maker() as db:
+    async with async_session() as db:
         # Check if exists
         result = await db.execute(select(User).where(User.username == username))
         existing_user = result.scalars().first()
