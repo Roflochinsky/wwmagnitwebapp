@@ -3,7 +3,6 @@ import { Search, Filter, MoreHorizontal, TrendingUp, TrendingDown } from 'lucide
 import { employeesService } from '../../api/services/employees';
 import type { Employee } from '../../api/services/employees';
 
-// Extended type for UI logic, should ideally come from backend or computed
 interface EmployeeUI extends Employee {
     activity: number;
     downtime: number;
@@ -20,13 +19,13 @@ const UserTable = ({ onUserSelect }: { onUserSelect: (user: EmployeeUI) => void 
         const fetchEmployees = async () => {
             try {
                 const data = await employeesService.getAll();
-                // Transform data for UI TODO: Get real activity stats
+                // Transform data for UI - adding mock computed fields until backend provides them
                 const mapped: EmployeeUI[] = data.map(emp => ({
                     ...emp,
-                    activity: Math.floor(Math.random() * 100), // Mock for now
-                    downtime: Math.floor(Math.random() * 60),  // Mock for now
-                    status: Math.random() > 0.2 ? 'online' : 'offline', // Mock
-                    trend: Math.random() > 0.5 ? 'up' : 'down' // Mock
+                    activity: Math.floor(Math.random() * 100),
+                    downtime: Math.floor(Math.random() * 60),
+                    status: Math.random() > 0.2 ? 'online' : 'offline',
+                    trend: Math.random() > 0.5 ? 'up' : 'down'
                 }));
                 setEmployees(mapped);
             } catch (error) {
@@ -102,7 +101,7 @@ const UserTable = ({ onUserSelect }: { onUserSelect: (user: EmployeeUI) => void 
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                    {user.department}
+                                    {user.department || '—'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-2">

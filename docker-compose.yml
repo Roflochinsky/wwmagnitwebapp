@@ -11,9 +11,6 @@ services:
     env_file:
       - ./backend/.env
     restart: always
-    volumes:
-      - ./backend/token.json:/app/token.json # Persist tokens if needed
-      # Add other volumes if you need to persist uploaded files
 
   frontend:
     build:

@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/client';
 
 interface AuthContextType {
     token: string | null;
-    isAuthenticated: boolean;
     login: (token: string) => void;
     logout: () => void;
+    isAuthenticated: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
@@ -16,11 +16,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         if (token) {
             localStorage.setItem('token', token);
-            // Set default header for future requests
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            // Verify token validity or refresh if needed (omitted for MVP)
         } else {
             localStorage.removeItem('token');
-            delete axios.defaults.headers.common['Authorization'];
         }
     }, [token]);
 
@@ -33,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ token, isAuthenticated: !!token, login, logout }}>
+        <AuthContext.Provider value={{ token, login, logout, isAuthenticated: !!token }}>
             {children}
         </AuthContext.Provider>
     );

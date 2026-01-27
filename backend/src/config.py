@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     sheet_id_people_mapping: str = ""
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
     debug: bool = True
 
     # Auth

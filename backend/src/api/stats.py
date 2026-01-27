@@ -82,10 +82,6 @@ async def get_activity_stats(
     
     activity_percent = avg_work + avg_go
     
-    # Приводим к 100% если сумма больше (из-за округлений) или считаем activity как 100 - idle?
-    # User Request: Активность=Work_sec (+ Go_sec в дашборде)
-    # Но для KPI карточек "Мин/%" нам нужны абсолютные значения
-    
     total_work_sec = row.sum_work_sec or 0
     total_go_sec = row.sum_go_sec or 0
     total_idle_sec = row.sum_idle_sec or 0
@@ -115,12 +111,9 @@ async def get_activity_stats(
             "percent": round(avg_work, 1),
             "minutes": to_min(total_work_sec)
         },
-        # KPI: Go/Rest Zone (если Go считать как отдых/перемещение? Нет, Go это перемещение)
-        # В запросе KPI "Нахождение в зоне отдыха" -> это Idle или отдельная зона?
-        # Пока мапим Go на "Перемещение" или Rest Zone если есть такая логика
-        # Для "Нахождение в зоне отдыха" у нас нет явного поля, используем Idle как базу
-        "start_zone": { # Placeholder name, logic needs clarification if "Rest Zone" != Idle
-             "percent": round(avg_go, 1), # Using Go as 4th card for now
+        # KPI: Go (Mapped to Rest/Move zone as placeholder)
+        "start_zone": {
+             "percent": round(avg_go, 1),
              "minutes": to_min(total_go_sec)
         }
     }

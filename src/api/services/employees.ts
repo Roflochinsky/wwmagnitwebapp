@@ -4,12 +4,17 @@ export interface Employee {
     id: number;
     tn_number: number;
     name: string;
-    department: string | null;
+    department?: string;
+    // Computed fields optionally added by backend or frontend
+    activity?: number;
+    downtime?: number;
+    status?: 'online' | 'offline';
+    trend?: 'up' | 'down';
 }
 
 export const employeesService = {
     getAll: async (): Promise<Employee[]> => {
-        const response = await api.get('/api/employees');
+        const response = await api.get('/api/employees/');
         return response.data;
     },
 

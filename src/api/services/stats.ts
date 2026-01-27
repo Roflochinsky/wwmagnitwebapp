@@ -24,3 +24,4 @@ export const statsService = {
         return response.data;
     }
 };
+
