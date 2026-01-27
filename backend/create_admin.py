@@ -11,11 +11,17 @@ async def create_admin(username, password):
         result = await db.execute(select(User).where(User.username == username))
         existing_user = result.scalars().first()
         
+        hashed_pw = get_password_hash(password)
+        
         if existing_user:
-            print(f"User {username} already exists.")
+            print(f"User {username} already exists. Updating password...")
+            existing_user.hashed_password = hashed_pw
+            existing_user.is_active = True
+            existing_user.is_superuser = True
+            await db.commit()
+            print(f"User {username} password updated successfully.")
             return
 
-        hashed_pw = get_password_hash(password)
         new_user = User(
             username=username,
             hashed_password=hashed_pw,

@@ -1,4 +1,5 @@
 import React, { useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PieChart, Activity, ArrowLeftRight, LayoutGrid, LogOut } from 'lucide-react';
 import logo from '../../assets/logoByCo.svg';
 import type { PageType } from '../../context/PageContext';
@@ -6,6 +7,7 @@ import { PageContext } from '../../context/PageContext';
 
 const Sidebar = () => {
     const { currentPage, setCurrentPage, isSidebarCollapsed } = useContext(PageContext);
+    const navigate = useNavigate();
 
     const menuItems: { icon: typeof PieChart; label: string; page: PageType }[] = [
         { icon: PieChart, label: 'Аналитика', page: 'analytics' },
@@ -29,7 +31,10 @@ const Sidebar = () => {
                         {menuItems.map((item) => (
                             <button
                                 key={item.label}
-                                onClick={() => setCurrentPage(item.page)}
+                                onClick={() => {
+                                    setCurrentPage(item.page);
+                                    navigate(`/${item.page}`);
+                                }}
                                 title={isSidebarCollapsed ? item.label : undefined}
                                 className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-4'} py-3 rounded-xl text-sm font-medium transition-all duration-300 ${currentPage === item.page
                                     ? 'bg-gray-50 text-gray-900'
