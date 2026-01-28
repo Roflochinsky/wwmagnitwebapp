@@ -2,8 +2,15 @@ import DowntimeStats from '../components/downtime/DowntimeStats';
 import DowntimeHeatmap from '../components/downtime/DowntimeHeatmap';
 import DowntimeChart from '../components/downtime/DowntimeChart';
 import WorstPerformers from '../components/downtime/WorstPerformers';
+import { useContext } from 'react';
+import { FilterContext } from '../context/FilterContext';
 
 const DowntimePage = () => {
+    const { dateRange } = useContext(FilterContext);
+
+    // TODO: Pass dateRange to subcomponents or ensure they use the context directly
+    // console.log('DowntimePage date range:', dateRange);
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Section Header */}

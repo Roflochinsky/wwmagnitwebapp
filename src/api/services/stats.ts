@@ -13,14 +13,22 @@ export interface ActivityStats {
 }
 
 export const statsService = {
-    getDailyStats: async (): Promise<any> => {
+    getDailyStats: async (startDate?: string, endDate?: string): Promise<any> => {
         // Keep for chart data later
-        const response = await api.get('/api/stats/daily');
+        const params: any = {};
+        if (startDate) params.date_from = startDate;
+        if (endDate) params.date_to = endDate;
+
+        const response = await api.get('/api/stats/daily', { params });
         return response.data;
     },
 
-    getActivityStats: async (): Promise<ActivityStats> => {
-        const response = await api.get('/api/stats/activity');
+    getActivityStats: async (startDate?: string, endDate?: string): Promise<ActivityStats> => {
+        const params: any = {};
+        if (startDate) params.date_from = startDate;
+        if (endDate) params.date_to = endDate;
+
+        const response = await api.get('/api/stats/activity', { params });
         return response.data;
     }
 };

@@ -3,19 +3,27 @@ import StatsCard from '../components/dashboard/StatsCard';
 import ActivityChart from '../components/dashboard/ActivityChart';
 import TopPerformers from '../components/dashboard/TopPerformers';
 import { statsService } from '../api/services/stats';
+import { useContext } from 'react';
+import { FilterContext } from '../context/FilterContext';
 import type { ActivityStats } from '../api/services/stats';
 
 const AnalyticsPage = () => {
+    const { dateRange } = useContext(FilterContext);
     const [stats, setStats] = useState<ActivityStats | null>(null);
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchStats = async () => {
+            setLoading(true);
             try {
+                // Format dates as YYYY-MM-DD
+                const fromStr = dateRange.from.toISOString().split('T')[0];
+                const toStr = dateRange.to.toISOString().split('T')[0];
+
                 const [activityData, dailyData] = await Promise.all([
-                    statsService.getActivityStats(),
-                    statsService.getDailyStats()
+                    statsService.getActivityStats(fromStr, toStr),
+                    statsService.getDailyStats(fromStr, toStr)
                 ]);
                 setStats(activityData);
 
@@ -38,7 +46,7 @@ const AnalyticsPage = () => {
         };
 
         fetchStats();
-    }, []);
+    }, [dateRange]);
 
     if (loading) {
         return <div className="p-8 text-center text-gray-500">Загрузка данных...</div>;

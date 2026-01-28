@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { PageProvider } from './context/PageContext';
+import { FilterProvider } from './context/FilterContext';
 import LoginPage from './pages/LoginPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import DowntimePage from './pages/DowntimePage';
@@ -14,19 +15,21 @@ function App() {
     <Router>
       <AuthProvider>
         <PageProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
+          <FilterProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
 
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Navigate to="/analytics" replace />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/downtime" element={<DowntimePage />} />
-              <Route path="/movement" element={<MovementPage />} />
-              <Route path="/users" element={<UsersPage />} />
-            </Route>
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<Navigate to="/analytics" replace />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/downtime" element={<DowntimePage />} />
+                <Route path="/movement" element={<MovementPage />} />
+                <Route path="/users" element={<UsersPage />} />
+              </Route>
 
-            <Route path="*" element={<Navigate to="/analytics" replace />} />
-          </Routes>
+              <Route path="*" element={<Navigate to="/analytics" replace />} />
+            </Routes>
+          </FilterProvider>
         </PageProvider>
       </AuthProvider>
     </Router>
