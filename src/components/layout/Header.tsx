@@ -7,6 +7,14 @@ const Header = () => {
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
     const { isSidebarCollapsed, setSidebarCollapsed } = useContext(PageContext);
     const { dateRange, setDateRange, selectedObject, setSelectedObject } = useContext(FilterContext);
+    const [tempDateRange, setTempDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
+
+    // Sync temp state when opening calendar
+    React.useEffect(() => {
+        if (isCalendarOpen) {
+            setTempDateRange({ from: dateRange.from, to: dateRange.to });
+        }
+    }, [isCalendarOpen, dateRange]);
 
     // Helper to format date for display
     const formatDate = (date: Date) => {
@@ -23,13 +31,34 @@ const Header = () => {
             from.setDate(from.getDate() - days);
         }
         setDateRange({ from, to });
+        setIsCalendarOpen(false);
+    };
+
+    const handleDateClick = (day: number) => {
+        // Simple logic for current month (Jan 2026 as hardcoded in UI for now)
+        const year = 2026;
+        const month = 0; // Jan
+        const clickedDate = new Date(year, month, day);
+
+        if (!tempDateRange.from || (tempDateRange.from && tempDateRange.to)) {
+            // Start new range
+            setTempDateRange({ from: clickedDate, to: null });
+        } else {
+            // Complete range
+            let from = tempDateRange.from;
+            let to = clickedDate;
+            if (to < from) {
+                [from, to] = [to, from];
+            }
+            setTempDateRange({ from, to });
+        }
     };
 
     const handleCalendarApply = () => {
-        // Logic to apply manual calendar selection would go here. 
-        // For now, let's just close it as we haven't built the visual date picker logic fully.
-        // We'll trust the 1D/7D/30D buttons for now or assume the user selected something.
-        setIsCalendarOpen(false);
+        if (tempDateRange.from && tempDateRange.to) {
+            setDateRange({ from: tempDateRange.from, to: tempDateRange.to });
+            setIsCalendarOpen(false);
+        }
     };
 
     return (
@@ -91,21 +120,24 @@ const Header = () => {
                             {/* Empty days for offset */}
                             {[...Array(3)].map((_, i) => <div key={`empty-${i}`} />)}
 
-                            {/* Days - Visual only for now */}
+                            {/* Days - Interactive */}
                             {[...Array(31)].map((_, i) => {
                                 const day = i + 1;
-                                const isSelected = day >= 10 && day <= 20;
-                                const isStart = day === 10;
-                                const isEnd = day === 20;
+                                const current = new Date(2026, 0, day);
+
+                                const isStart = tempDateRange.from && current.getTime() === tempDateRange.from.getTime();
+                                const isEnd = tempDateRange.to && current.getTime() === tempDateRange.to.getTime();
+                                const isSelected = tempDateRange.from && tempDateRange.to && current >= tempDateRange.from && current <= tempDateRange.to;
+                                const isRangePoint = isStart || isEnd;
 
                                 return (
                                     <button
                                         key={day}
+                                        onClick={() => handleDateClick(day)}
                                         className={`
                                             h-9 w-9 rounded-lg text-sm font-medium flex items-center justify-center transition-all relative
                                             ${isSelected ? 'bg-teal-50 text-teal-700' : 'hover:bg-gray-50 text-gray-700'}
-                                            ${isStart ? '!bg-teal-600 !text-white shadow-md z-10' : ''}
-                                            ${isEnd ? '!bg-teal-600 !text-white shadow-md z-10' : ''}
+                                            ${isRangePoint ? '!bg-teal-600 !text-white shadow-md z-10' : ''}
                                         `}
                                     >
                                         {day}

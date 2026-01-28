@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import date, timedelta
 from src.database import get_db
-from src.models import Employee, Shift, Downtime
+from src.models import Employee, Shift, Downtime, BleLog
 
 router = APIRouter()
 
@@ -62,59 +62,82 @@ async def get_activity_stats(
     if not date_to:
         date_to = date.today()
 
-    stmt = select(
-        func.avg(Shift.full_work_percent).label("avg_work"),
-        func.avg(Shift.full_idle_percent).label("avg_idle"),
-        func.avg(Shift.full_go_percent).label("avg_go"),
+    # Base Shift Aggregates
+    stmt_shifts = select(
+        func.count(Shift.id).label("total_shifts"),
+        func.avg(Shift.full_work_percent).label("avg_work_pct"),
+        func.avg(Shift.full_idle_percent).label("avg_idle_pct"),
+        func.avg(Shift.full_go_percent).label("avg_go_pct"),
         func.sum(Shift.full_work_seconds).label("sum_work_sec"),
         func.sum(Shift.full_idle_seconds).label("sum_idle_sec"),
         func.sum(Shift.full_go_seconds).label("sum_go_sec"),
     ).where(Shift.date.between(date_from, date_to))
 
-    result = await db.execute(stmt)
-    row = result.one()
+    result_shifts = await db.execute(stmt_shifts)
+    row_shifts = result_shifts.one()
     
-    # Расчет в минутах для "Мин/%"
-    # Активность = Work + Go
-    avg_work = row.avg_work or 0
-    avg_go = row.avg_go or 0
-    avg_idle = row.avg_idle or 0
-    
-    activity_percent = avg_work + avg_go
-    
-    total_work_sec = row.sum_work_sec or 0
-    total_go_sec = row.sum_go_sec or 0
-    total_idle_sec = row.sum_idle_sec or 0
-    
-    total_activity_sec = total_work_sec + total_go_sec
-    
-    def to_min(seconds):
-        return round(seconds / 60)
+    total_shifts = row_shifts.total_shifts or 1
+    if total_shifts == 0:
+        total_shifts = 1
 
+    # Raw Log Counts (1 row = 1 minute)
+    # Work Zone (id=1)
+    stmt_work_logs = select(func.count(BleLog.id)).where(
+        BleLog.shift_day.between(date_from, date_to),
+        BleLog.zone_id == 1
+    )
+    work_logs_count = (await db.execute(stmt_work_logs)).scalar() or 0
+
+    # Rest Zone (id=5)
+    stmt_rest_logs = select(func.count(BleLog.id)).where(
+        BleLog.shift_day.between(date_from, date_to),
+        BleLog.zone_id == 5
+    )
+    rest_logs_count = (await db.execute(stmt_rest_logs)).scalar() or 0
+
+    # Calculate Averages (Minutes per Shift)
+    avg_work_min_logs = round(work_logs_count / total_shifts)
+    avg_rest_min_logs = round(rest_logs_count / total_shifts)
+
+    # Legacy Shift-based calculations (for Activity/Idle which might not have zone_id)
+    # Keeping them for consistency with previous "Activity" definition unless requested to change
+    def calc_avg_min_from_sec(sum_seconds):
+        if not sum_seconds:
+            return 0
+        return round((sum_seconds / 60) / total_shifts)
+
+    # Combined Activity (Work + Go)
+    avg_work_pct = row_shifts.avg_work_pct or 0
+    avg_go_pct = row_shifts.avg_go_pct or 0
+    activity_pct = avg_work_pct + avg_go_pct
+    
+    total_activity_min = calc_avg_min_from_sec((row_shifts.sum_work_sec or 0) + (row_shifts.sum_go_sec or 0))
+    
     return {
         "period": {
             "from": date_from.isoformat(),
             "to": date_to.isoformat(),
         },
-        # KPI: Activity
+        # KPI: Activity (Shift-based)
         "activity": {
-            "percent": round(activity_percent, 1),
-            "minutes": to_min(total_activity_sec)
+            "percent": round(activity_pct, 1),
+            "minutes": total_activity_min
         },
-        # KPI: Idle
+        # KPI: Idle (Shift-based)
         "idle": {
-            "percent": round(avg_idle, 1),
-            "minutes": to_min(total_idle_sec)
+            "percent": round(row_shifts.avg_idle_pct or 0, 1),
+            "minutes": calc_avg_min_from_sec(row_shifts.sum_idle_sec)
         },
-        # KPI: Work Zone
+        # KPI: Work Zone (Log-based, zone_id=1)
         "work_zone": {
-            "percent": round(avg_work, 1),
-            "minutes": to_min(total_work_sec)
+            "percent": round(avg_work_pct, 1), # Keep pct from Shift for now OR calculate from time? Shift pct is more accurate for "share of shift"
+            "minutes": avg_work_min_logs
         },
-        # KPI: Go (Mapped to Rest/Move zone as placeholder)
+        # KPI: Rest Zone (Log-based, zone_id=5)
+        # Replacing 'start_zone' logic with Rest Zone data
         "start_zone": {
-             "percent": round(avg_go, 1),
-             "minutes": to_min(total_go_sec)
+             "percent": round(avg_go_pct, 1), # Placeholder pct (maybe should be avg_rest_pct if we had it)
+             "minutes": avg_rest_min_logs
         }
     }
 

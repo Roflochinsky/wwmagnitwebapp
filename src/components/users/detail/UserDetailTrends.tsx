@@ -1,15 +1,28 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const data = [
-    { day: 'Пн', value: 85 },
-    { day: 'Вт', value: 92 },
-    { day: 'Ср', value: 78 },
-    { day: 'Чт', value: 88 },
-    { day: 'Пт', value: 95 },
-    { day: 'Сб', value: 60 },
-    { day: 'Вс', value: 0 },
-];
+const generateTrendData = () => {
+    const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const data = [];
+    const today = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const dayOfWeek = days[d.getDay()];
+        const dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }); // DD.MM
+
+        data.push({
+            day: dayOfWeek,
+            date: dateStr,
+            fullDay: `${dayOfWeek} ${dateStr}`,
+            value: Math.floor(Math.random() * (95 - 60) + 60) // Random for now as backend data is not plugged here yet
+        });
+    }
+    return data;
+};
+
+const data = generateTrendData();
 
 const UserDetailTrends = () => {
     return (
@@ -38,6 +51,12 @@ const UserDetailTrends = () => {
                             contentStyle={{ backgroundColor: '#0f766e', border: 'none', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
                             itemStyle={{ color: '#fff' }}
                             formatter={(value: any) => [`${value}%`, 'Эффективность']}
+                            labelFormatter={(label, payload) => {
+                                if (payload && payload.length > 0) {
+                                    return payload[0].payload.fullDay; // Show "Пн 27.01"
+                                }
+                                return label;
+                            }}
                         />
                         {/* Norma Line */}
                         <Area type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
