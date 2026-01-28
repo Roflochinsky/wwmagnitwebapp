@@ -174,3 +174,54 @@ async def get_daily_stats(
         }
         for row in rows
     ]
+
+
+@router.get("/top-performers")
+async def get_top_performers(
+    date_from: date = Query(default=None),
+    date_to: date = Query(default=None),
+    order: str = Query(default="desc", regex="^(asc|desc)$"),
+    limit: int = Query(default=5),
+    db: AsyncSession = Depends(get_db),
+):
+    """Топ сотрудников по эффективности"""
+    if not date_from:
+        date_from = date.today() - timedelta(days=7)
+    if not date_to:
+        date_to = date.today()
+
+    # Calculate average work percent per employee
+    stmt = (
+        select(
+            Employee.id,
+            Employee.name,
+            Employee.department,
+            func.avg(Shift.full_work_percent).label("avg_work_pct")
+        )
+        .join(Shift, Shift.employee_id == Employee.id)
+        .where(Shift.date.between(date_from, date_to))
+        .group_by(Employee.id, Employee.name, Employee.department)
+    )
+
+    if order == "asc":
+        stmt = stmt.order_by(func.avg(Shift.full_work_percent).asc())
+    else:
+        stmt = stmt.order_by(func.avg(Shift.full_work_percent).desc())
+
+    stmt = stmt.limit(limit)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "department": row.department,
+            "value": round(row.avg_work_pct or 0), # Percent
+            # Mocking trend/avatar for now as they aren't in DB yet
+            "avatar_url": None, 
+            "trend": "up" if row.avg_work_pct and row.avg_work_pct >= 80 else "down"
+        }
+        for row in rows
+    ]
