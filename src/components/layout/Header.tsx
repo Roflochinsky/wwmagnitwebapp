@@ -35,7 +35,7 @@ const Header = () => {
     };
 
     const handleDateClick = (day: number) => {
-        // Simple logic for current month (Jan 2026 as hardcoded in UI for now)
+        console.log("Date clicked:", day); // DEBUG
         const year = 2026;
         const month = 0; // Jan
         const clickedDate = new Date(year, month, day);
@@ -55,6 +55,7 @@ const Header = () => {
     };
 
     const handleCalendarApply = () => {
+        console.log("Applying calendar:", tempDateRange); // DEBUG
         if (tempDateRange.from && tempDateRange.to) {
             setDateRange({ from: tempDateRange.from, to: tempDateRange.to });
             setIsCalendarOpen(false);
@@ -133,7 +134,7 @@ const Header = () => {
                                 return (
                                     <button
                                         key={day}
-                                        onClick={() => handleDateClick(day)}
+                                        onClick={(e) => { e.stopPropagation(); handleDateClick(day); }}
                                         className={`
                                             h-9 w-9 rounded-lg text-sm font-medium flex items-center justify-center transition-all relative
                                             ${isSelected ? 'bg-teal-50 text-teal-700' : 'hover:bg-gray-50 text-gray-700'}
@@ -147,8 +148,8 @@ const Header = () => {
                         </div>
 
                         <div className="flex justify-between items-center mt-5 pt-4 border-t border-gray-100">
-                            <button onClick={() => setIsCalendarOpen(false)} className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-3 py-2">Отмена</button>
-                            <button onClick={handleCalendarApply} className="text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-xl shadow-sm shadow-teal-200 transition-colors">Применить</button>
+                            <button onClick={(e) => { e.stopPropagation(); setIsCalendarOpen(false); }} className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-3 py-2">Отмена</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleCalendarApply(); }} className="text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-xl shadow-sm shadow-teal-200 transition-colors">Применить</button>
                         </div>
                     </div>
                 )}

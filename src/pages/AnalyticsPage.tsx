@@ -31,10 +31,16 @@ const AnalyticsPage = () => {
                 // Backend returns: date, shifts_count, avg_work_percent, avg_idle_percent
                 // Chart expects: name (day), value (percent or count)
                 // Let's map dailyData to chart format.
-                const mappedChartData = dailyData.map((d: any) => ({
-                    name: new Date(d.date).toLocaleDateString('ru-RU', { weekday: 'short' }),
-                    value: d.shifts_count
-                }));
+                const mappedChartData = dailyData.map((d: any) => {
+                    const dateObj = new Date(d.date);
+                    const weekday = dateObj.toLocaleDateString('ru-RU', { weekday: 'short' });
+                    const dayDate = dateObj.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                    return {
+                        name: `${weekday}\n${dayDate}`, // "Пн 26.01"
+                        value: d.shifts_count,
+                        fullDate: d.date // Pass full date if custom tooltip needs it
+                    };
+                });
                 // If mappedChartData is empty, use 0s or keep previous logic
                 setChartData(mappedChartData);
 
