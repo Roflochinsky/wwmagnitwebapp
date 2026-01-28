@@ -32,8 +32,8 @@ export const statsService = {
         return response.data;
     },
 
-    getTopPerformers: async (startDate?: string, endDate?: string, order: 'asc' | 'desc' = 'desc'): Promise<any[]> => {
-        const params: any = { order, limit: 5 };
+    getTopPerformers: async (startDate?: string, endDate?: string, order: 'asc' | 'desc' = 'desc', metric: 'work' | 'idle' | 'rest' = 'work'): Promise<any[]> => {
+        const params: any = { order, metric, limit: 5 };
         if (startDate) params.date_from = startDate;
         if (endDate) params.date_to = endDate;
 

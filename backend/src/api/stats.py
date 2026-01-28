@@ -181,32 +181,42 @@ async def get_top_performers(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
     order: str = Query(default="desc", regex="^(asc|desc)$"),
+    metric: str = Query(default="work", regex="^(work|idle|rest)$"),
     limit: int = Query(default=5),
     db: AsyncSession = Depends(get_db),
 ):
-    """Топ сотрудников по эффективности"""
+    """Топ сотрудников по эффективности, простою или отдыху"""
     if not date_from:
         date_from = date.today() - timedelta(days=7)
     if not date_to:
         date_to = date.today()
 
-    # Calculate average work percent per employee
+    # Select column based on metric
+    if metric == "idle":
+        target_col = func.avg(Shift.full_idle_percent).label("value_pct")
+    elif metric == "rest":
+        target_col = func.avg(Shift.full_go_percent).label("value_pct")
+    else:
+        target_col = func.avg(Shift.full_work_percent).label("value_pct")
+
+    # Calculate average percent per employee
     stmt = (
         select(
             Employee.id,
             Employee.name,
             Employee.department,
-            func.avg(Shift.full_work_percent).label("avg_work_pct")
+            target_col
         )
         .join(Shift, Shift.employee_id == Employee.id)
         .where(Shift.date.between(date_from, date_to))
         .group_by(Employee.id, Employee.name, Employee.department)
     )
 
+    # Sort
     if order == "asc":
-        stmt = stmt.order_by(func.avg(Shift.full_work_percent).asc())
+        stmt = stmt.order_by(target_col.asc())
     else:
-        stmt = stmt.order_by(func.avg(Shift.full_work_percent).desc())
+        stmt = stmt.order_by(target_col.desc())
 
     stmt = stmt.limit(limit)
 
@@ -218,10 +228,9 @@ async def get_top_performers(
             "id": row.id,
             "name": row.name,
             "department": row.department,
-            "value": round(row.avg_work_pct or 0), # Percent
-            # Mocking trend/avatar for now as they aren't in DB yet
+            "value": round(row.value_pct or 0), # Percent
             "avatar_url": None, 
-            "trend": "up" if row.avg_work_pct and row.avg_work_pct >= 80 else "down"
+            "trend": "up" # Placeholder
         }
         for row in rows
     ]
