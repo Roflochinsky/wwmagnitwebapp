@@ -39,9 +39,10 @@ const ActivityChart = ({ data = [] }: ActivityChartProps) => {
                             dataKey="name"
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 500 }}
-                            dy={15}
-                            interval={0}
+                            tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 500 }}
+                            dy={10}
+                            interval="preserveStartEnd"
+                            minTickGap={20}
                         />
                         <YAxis
                             axisLine={false}
@@ -52,15 +53,18 @@ const ActivityChart = ({ data = [] }: ActivityChartProps) => {
                             dx={-10}
                         />
                         <Tooltip
-                            cursor={{ fill: 'rgba(255,255,255,0.1)', radius: 4 }}
+                            cursor={{ fill: 'rgba(255,255,255,0.1)', radius: 6 }}
                             contentStyle={{ backgroundColor: '#0f766e', border: 'none', borderRadius: '12px', color: '#fff', padding: '8px 12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
                             itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 600 }}
                             formatter={(value: any) => [value?.toString() || '0', 'Пользователи']}
+                            isAnimationActive={false} // Prevent jumpy square
                         />
                         <Bar
                             dataKey="value"
                             radius={[6, 6, 6, 6]}
-                            className="transition-all duration-300 hover:opacity-90"
+                            className="transition-all duration-300 hover:opacity-90 cursor-pointer"
+                            // Remove default active bar style if any
+                            activeBar={false}
                         >
                             {chartData.map((_, index) => (
                                 <Cell
