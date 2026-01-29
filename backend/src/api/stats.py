@@ -160,7 +160,6 @@ async def get_activity_stats(
 
 
 @router.get("/daily")
-@router.get("/daily")
 async def get_daily_stats(
     days: int = 7,
     object_name: str = Query(default=None),
@@ -184,7 +183,6 @@ async def get_daily_stats(
         stmt = stmt.where(ProcessedFile.object_name == object_name)
 
     stmt = stmt.group_by(Shift.date).order_by(Shift.date)
-    )
 
     result = await db.execute(stmt)
     rows = result.all()
@@ -241,7 +239,6 @@ async def get_top_performers(
         stmt = stmt.where(ProcessedFile.object_name == object_name)
 
     stmt = stmt.group_by(Employee.id, Employee.name, Employee.department)
-    )
 
     # Sort
     if order == "asc":
