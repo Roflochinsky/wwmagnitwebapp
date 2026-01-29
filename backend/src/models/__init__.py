@@ -99,6 +99,7 @@ class ProcessedFile(Base):
     filename = Column(String(255), nullable=False)
     content_hash = Column(String(32), nullable=True)
     report_type = Column(String(50), nullable=False)
+    object_name = Column(String(255), nullable=True, index=True)
     processed_at = Column(DateTime, nullable=False)
     records_count = Column(Integer, nullable=True)
 

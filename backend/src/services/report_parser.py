@@ -148,7 +148,8 @@ class ReportParser:
             await self.sync_reference_data()
             
         report_type = self._detect_report_type(filename, report_type)
-        logger.info(f"Report type detected: {report_type} for {filename}")
+        object_name = self._extract_object_name(filename)
+        logger.info(f"Report type detected: {report_type} for {filename}, Object: {object_name}")
 
         # Инициализируем ExcelFile перед работой с листами
         xls = pd.ExcelFile(io.BytesIO(content))
@@ -172,6 +173,7 @@ class ReportParser:
             filename=filename,
             content_hash=content_hash,
             report_type=report_type,
+            object_name=object_name,
             processed_at=datetime.now(),
             records_count=0, # Будет обновлено ниже
         )
@@ -212,6 +214,24 @@ class ReportParser:
             return "report10"
 
         return "report10"
+
+    def _extract_object_name(self, filename: str) -> str:
+        """Извлекает имя объекта из названия файла.
+           Ожидаемый формат: ..._OBJNAME_... 
+           Например: 11_отчет по АА_BLE со склейкой_MAGNIT_LOMONOSOV_!NEW!_... -> MAGNIT_LOMONOSOV
+        """
+        # Попытка 1: Поиск паттерна _NAME_Name_ (например _MAGNIT_LOMONOSOV_)
+        # Ищем последовательность заглавных букв, цифр и _ между двумя _
+        match = re.search(r'_([A-Z0-9]+_[A-Z0-9]+)_', filename)
+        if match:
+            return match.group(1)
+            
+        # Попытка 2: Если есть просто заглавные слова (менее надежно, но как запасной вариант)
+        # match_simple = re.search(r'_([A-Z0-9]{3,})_', filename)
+        # if match_simple:
+        #     return match_simple.group(1)
+            
+        return "Unknown"
 
     async def _load_employee_cache(self):
         """Предзагрузка всех сотрудников в кеш"""

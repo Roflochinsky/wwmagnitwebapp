@@ -6,7 +6,7 @@ import { FilterContext } from '../../context/FilterContext';
 type MetricType = 'work' | 'idle' | 'rest';
 
 const TopPerformers = () => {
-    const { dateRange } = useContext(FilterContext);
+    const { dateRange, selectedObject } = useContext(FilterContext);
     const [isBest, setIsBest] = useState(true);
     const [metric, setMetric] = useState<MetricType>('work');
     const [performers, setPerformers] = useState<any[]>([]);
@@ -30,7 +30,7 @@ const TopPerformers = () => {
                     order = isBest ? 'desc' : 'asc';
                 }
 
-                const data = await statsService.getTopPerformers(fromStr, toStr, order, metric);
+                const data = await statsService.getTopPerformers(fromStr, toStr, order, metric, selectedObject);
                 setPerformers(data);
             } catch (error) {
                 console.error("Failed to fetch top performers", error);
@@ -40,7 +40,7 @@ const TopPerformers = () => {
         };
 
         fetchData();
-    }, [isBest, metric, dateRange]);
+    }, [isBest, metric, dateRange, selectedObject]);
 
     const getMetricLabel = () => {
         switch (metric) {
@@ -129,8 +129,8 @@ const TopPerformers = () => {
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                             {/* Rank */}
                             <div className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${isBest
-                                    ? (index < 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500')
-                                    : (index < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500')
+                                ? (index < 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500')
+                                : (index < 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500')
                                 }`}>
                                 {index + 1}
                             </div>

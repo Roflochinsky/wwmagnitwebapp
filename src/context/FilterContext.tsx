@@ -7,16 +7,13 @@ export interface DateRange {
     to: Date;
 }
 
-export interface WorkObject {
-    id: number;
-    name: string;
-}
+
 
 interface FilterContextType {
     dateRange: DateRange;
     setDateRange: (range: DateRange) => void;
-    selectedObject: WorkObject | null;
-    setSelectedObject: (obj: WorkObject | null) => void;
+    selectedObject: string | null;
+    setSelectedObject: (object: string | null) => void;
 }
 
 // Default to last 7 days
@@ -34,8 +31,8 @@ export const FilterContext = createContext<FilterContextType>({
 
 export const FilterProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange);
-    // TODO: Initialize with a default object if needed, or fetch first available
-    const [selectedObject, setSelectedObject] = useState<WorkObject | null>(null);
+    // TODO: Initialize with a default object if needed,    // Simplified object selection (just name)
+    const [selectedObject, setSelectedObject] = React.useState<string | null>(null);
 
     return (
         <FilterContext.Provider value={{ dateRange, setDateRange, selectedObject, setSelectedObject }}>

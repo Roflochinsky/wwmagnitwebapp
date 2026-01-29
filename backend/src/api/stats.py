@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import date, timedelta
 from src.database import get_db
-from src.models import Employee, Shift, Downtime, BleLog
+from src.models import Employee, Shift, Downtime, BleLog, ProcessedFile
 
 router = APIRouter()
 
@@ -12,6 +12,7 @@ router = APIRouter()
 async def get_overview_stats(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
+    object_name: str = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """Общая статистика"""
@@ -23,19 +24,25 @@ async def get_overview_stats(
     employees_count = await db.execute(select(func.count(Employee.id)))
     total_employees = employees_count.scalar()
 
-    shifts_stmt = select(func.count(Shift.id)).where(
+    shifts_query = select(func.count(Shift.id)).join(ProcessedFile, Shift.processed_file_id == ProcessedFile.id).where(
         Shift.date.between(date_from, date_to)
     )
-    shifts_count = await db.execute(shifts_stmt)
+    if object_name:
+        shifts_query = shifts_query.where(ProcessedFile.object_name == object_name)
+    
+    shifts_count = await db.execute(shifts_query)
     total_shifts = shifts_count.scalar()
 
-    downtimes_stmt = select(
+    downtimes_query = select(
         func.count(Downtime.id),
         func.sum(Downtime.duration_minutes),
-    ).where(
+    ).join(ProcessedFile, Downtime.processed_file_id == ProcessedFile.id).where(
         func.date(Downtime.dt_start).between(date_from, date_to)
     )
-    downtime_result = await db.execute(downtimes_stmt)
+    if object_name:
+        downtimes_query = downtimes_query.where(ProcessedFile.object_name == object_name)
+
+    downtime_result = await db.execute(downtimes_query)
     downtime_row = downtime_result.one()
 
     return {
@@ -54,6 +61,7 @@ async def get_overview_stats(
 async def get_activity_stats(
     date_from: date = Query(default=None),
     date_to: date = Query(default=None),
+    object_name: str = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """Статистика активности"""
@@ -69,9 +77,11 @@ async def get_activity_stats(
         func.avg(Shift.full_idle_percent).label("avg_idle_pct"),
         func.avg(Shift.full_go_percent).label("avg_go_pct"),
         func.sum(Shift.full_work_seconds).label("sum_work_sec"),
-        func.sum(Shift.full_idle_seconds).label("sum_idle_sec"),
         func.sum(Shift.full_go_seconds).label("sum_go_sec"),
-    ).where(Shift.date.between(date_from, date_to))
+    ).join(ProcessedFile, Shift.processed_file_id == ProcessedFile.id).where(Shift.date.between(date_from, date_to))
+
+    if object_name:
+        stmt_shifts = stmt_shifts.where(ProcessedFile.object_name == object_name)
 
     result_shifts = await db.execute(stmt_shifts)
     row_shifts = result_shifts.one()
@@ -82,17 +92,24 @@ async def get_activity_stats(
 
     # Raw Log Counts (1 row = 1 minute)
     # Work Zone (id=1)
-    stmt_work_logs = select(func.count(BleLog.id)).where(
+    # Work Zone (id=1)
+    stmt_work_logs = select(func.count(BleLog.id)).join(ProcessedFile, BleLog.processed_file_id == ProcessedFile.id).where(
         BleLog.shift_day.between(date_from, date_to),
         BleLog.zone_id == 1
     )
+    if object_name:
+        stmt_work_logs = stmt_work_logs.where(ProcessedFile.object_name == object_name)
+    
     work_logs_count = (await db.execute(stmt_work_logs)).scalar() or 0
 
     # Rest Zone (id=5)
-    stmt_rest_logs = select(func.count(BleLog.id)).where(
+    stmt_rest_logs = select(func.count(BleLog.id)).join(ProcessedFile, BleLog.processed_file_id == ProcessedFile.id).where(
         BleLog.shift_day.between(date_from, date_to),
         BleLog.zone_id == 5
     )
+    if object_name:
+        stmt_rest_logs = stmt_rest_logs.where(ProcessedFile.object_name == object_name)
+    
     rest_logs_count = (await db.execute(stmt_rest_logs)).scalar() or 0
 
     # Calculate Averages (Minutes per Shift)
@@ -143,8 +160,10 @@ async def get_activity_stats(
 
 
 @router.get("/daily")
+@router.get("/daily")
 async def get_daily_stats(
     days: int = 7,
+    object_name: str = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """Статистика по дням"""
@@ -157,9 +176,14 @@ async def get_daily_stats(
             func.avg(Shift.full_work_percent).label("avg_work"),
             func.avg(Shift.full_idle_percent).label("avg_idle"),
         )
+        .join(ProcessedFile, Shift.processed_file_id == ProcessedFile.id)
         .where(Shift.date >= date_from)
-        .group_by(Shift.date)
-        .order_by(Shift.date)
+    )
+
+    if object_name:
+        stmt = stmt.where(ProcessedFile.object_name == object_name)
+
+    stmt = stmt.group_by(Shift.date).order_by(Shift.date)
     )
 
     result = await db.execute(stmt)
@@ -183,6 +207,7 @@ async def get_top_performers(
     order: str = Query(default="desc", regex="^(asc|desc)$"),
     metric: str = Query(default="work", regex="^(work|idle|rest)$"),
     limit: int = Query(default=5),
+    object_name: str = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """Топ сотрудников по эффективности, простою или отдыху"""
@@ -208,8 +233,14 @@ async def get_top_performers(
             target_col
         )
         .join(Shift, Shift.employee_id == Employee.id)
+        .join(ProcessedFile, Shift.processed_file_id == ProcessedFile.id)
         .where(Shift.date.between(date_from, date_to))
-        .group_by(Employee.id, Employee.name, Employee.department)
+    )
+
+    if object_name:
+        stmt = stmt.where(ProcessedFile.object_name == object_name)
+
+    stmt = stmt.group_by(Employee.id, Employee.name, Employee.department)
     )
 
     # Sort

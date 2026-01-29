@@ -8,7 +8,7 @@ import { FilterContext } from '../context/FilterContext';
 import type { ActivityStats } from '../api/services/stats';
 
 const AnalyticsPage = () => {
-    const { dateRange } = useContext(FilterContext);
+    const { dateRange, selectedObject } = useContext(FilterContext);
     const [stats, setStats] = useState<ActivityStats | null>(null);
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -22,8 +22,8 @@ const AnalyticsPage = () => {
                 const toStr = dateRange.to.toISOString().split('T')[0];
 
                 const [activityData, dailyData] = await Promise.all([
-                    statsService.getActivityStats(fromStr, toStr),
-                    statsService.getDailyStats(fromStr, toStr)
+                    statsService.getActivityStats(fromStr, toStr, selectedObject),
+                    statsService.getDailyStats(fromStr, toStr, selectedObject)
                 ]);
                 setStats(activityData);
 
@@ -52,13 +52,19 @@ const AnalyticsPage = () => {
         };
 
         fetchStats();
-    }, [dateRange]);
+    }, [dateRange, selectedObject]);
 
     if (loading) {
         return <div className="p-8 text-center text-gray-500">Загрузка данных...</div>;
     }
 
-    const formatMetric = (m?: number, p?: number) => `${m ?? 0} мин / ${p ?? 0}%`;
+    const formatMetric = (m?: number, p?: number) => {
+        const minutes = m ?? 0;
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        const timeStr = hours > 0 ? `${hours}ч ${mins}м` : `${mins}м`;
+        return `${timeStr} / ${p ?? 0}%`;
+    };
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

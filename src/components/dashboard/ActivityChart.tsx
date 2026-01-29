@@ -21,7 +21,11 @@ const ActivityChart = ({ data = [] }: ActivityChartProps) => {
     const maxValueIndex = chartData.findIndex(d => d.value === maxValue);
 
     return (
-        <div className="bg-[#11998e] rounded-3xl p-6 h-full relative overflow-hidden flex flex-col justify-between">
+        <div
+            className="bg-[#11998e] rounded-3xl p-6 h-full relative overflow-hidden flex flex-col justify-between outline-none focus:outline-none"
+            tabIndex={-1} // Prevent focus
+            style={{ WebkitTapHighlightColor: 'transparent' }} // Remove mobile tap highlight
+        >
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-white text-lg font-semibold">Пользователей в день</h2>
             </div>

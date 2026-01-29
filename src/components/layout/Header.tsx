@@ -8,6 +8,22 @@ const Header = () => {
     const { isSidebarCollapsed, setSidebarCollapsed } = useContext(PageContext);
     const { dateRange, setDateRange, selectedObject, setSelectedObject } = useContext(FilterContext);
     const [tempDateRange, setTempDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
+    const [availableObjects, setAvailableObjects] = useState<string[]>([]);
+    const [viewDate, setViewDate] = useState(new Date());
+
+    React.useEffect(() => {
+        const fetchObjects = async () => {
+            try {
+                // Import dynamically to avoid circular dependencies if any, or just standard import
+                const { objectsService } = await import('../../api/services/objects');
+                const objects = await objectsService.getAll();
+                setAvailableObjects(objects);
+            } catch (error) {
+                console.error("Failed to fetch objects:", error);
+            }
+        };
+        fetchObjects();
+    }, []);
 
     // Sync temp state when opening calendar
     React.useEffect(() => {
@@ -15,6 +31,27 @@ const Header = () => {
             setTempDateRange({ from: dateRange.from, to: dateRange.to });
         }
     }, [isCalendarOpen, dateRange]);
+
+    // Handle month navigation
+    const handlePrevMonth = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+    };
+
+    const handleNextMonth = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+    };
+
+    const getDaysInMonth = (date: Date) => {
+        return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    };
+
+    const getFirstDayOfMonth = (date: Date) => {
+        // Adjust for Monday start (0=Sun, 1=Mon... -> 0=Mon, 6=Sun)
+        const day = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+        return day === 0 ? 6 : day - 1;
+    };
 
     // Helper to format date for display
     const formatDate = (date: Date) => {
@@ -36,8 +73,8 @@ const Header = () => {
 
     const handleDateClick = (day: number) => {
         console.log("Date clicked:", day); // DEBUG
-        const year = 2026;
-        const month = 0; // Jan
+        const year = viewDate.getFullYear();
+        const month = viewDate.getMonth();
         const clickedDate = new Date(year, month, day);
 
         if (!tempDateRange.from || (tempDateRange.from && tempDateRange.to)) {
@@ -74,16 +111,31 @@ const Header = () => {
                 </button>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Добро пожаловать!</h1>
-                    <button
-                        className="text-sm text-gray-500 mt-1 flex items-center gap-1 hover:text-teal-600 transition-colors"
-                        onClick={() => {
-                            // Mock toggle object
-                            const nextId = (selectedObject?.id || 0) + 1;
-                            setSelectedObject({ id: nextId, name: `Объект ${nextId}` });
-                        }}
-                    >
-                        {selectedObject ? selectedObject.name : "Выбор объекта"} <ChevronDown size={14} />
-                    </button>
+                    <div className="relative group">
+                        <button
+                            className="text-sm text-gray-500 mt-1 flex items-center gap-1 hover:text-teal-600 transition-colors"
+                        >
+                            {selectedObject || "Все объекты"} <ChevronDown size={14} />
+                        </button>
+
+                        <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                            <button
+                                onClick={() => setSelectedObject(null)}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${!selectedObject ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Все объекты
+                            </button>
+                            {availableObjects.map((obj) => (
+                                <button
+                                    key={obj}
+                                    onClick={() => setSelectedObject(obj)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedObject === obj ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                                >
+                                    {obj}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -104,10 +156,12 @@ const Header = () => {
                 {isCalendarOpen && (
                     <div className="absolute top-full left-0 mt-3 bg-white rounded-3xl shadow-xl border border-gray-100 p-5 w-80 z-50 animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-4 px-1">
-                            <span className="font-bold text-gray-900">Январь 2026</span>
+                            <span className="font-bold text-gray-900 first-letter:capitalize">
+                                {viewDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
+                            </span>
                             <div className="flex gap-1">
-                                <button className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronLeft size={18} /></button>
-                                <button className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronRight size={18} /></button>
+                                <button onClick={handlePrevMonth} className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronLeft size={18} /></button>
+                                <button onClick={handleNextMonth} className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"><ChevronRight size={18} /></button>
                             </div>
                         </div>
 
@@ -119,12 +173,12 @@ const Header = () => {
 
                         <div className="grid grid-cols-7 gap-1">
                             {/* Empty days for offset */}
-                            {[...Array(3)].map((_, i) => <div key={`empty-${i}`} />)}
+                            {[...Array(getFirstDayOfMonth(viewDate))].map((_, i) => <div key={`empty-${i}`} />)}
 
                             {/* Days - Interactive */}
-                            {[...Array(31)].map((_, i) => {
+                            {[...Array(getDaysInMonth(viewDate))].map((_, i) => {
                                 const day = i + 1;
-                                const current = new Date(2026, 0, day);
+                                const current = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
 
                                 const isStart = tempDateRange.from && current.getTime() === tempDateRange.from.getTime();
                                 const isEnd = tempDateRange.to && current.getTime() === tempDateRange.to.getTime();

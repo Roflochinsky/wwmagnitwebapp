@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from src.config import get_settings
 from src.database import engine, Base
-from src.api import health, reports, employees, stats, sync, auth
+from src.api import health, reports, employees, stats, sync, auth, objects
 from src.scheduler import start_scheduler, stop_scheduler
 
 # Настройка логирования для отладки
@@ -50,3 +50,4 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(employees.router, prefix="/api/employees", tags=["Employees"])
 app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
 app.include_router(sync.router, prefix="/api", tags=["Sync"])
+app.include_router(objects.router, prefix="/api/objects", tags=["Objects"])

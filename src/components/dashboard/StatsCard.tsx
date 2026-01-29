@@ -19,7 +19,7 @@ const StatsCard = ({ label, amount, growth, bgClass }: StatsCardProps) => {
             </div>
 
             <div className="mt-auto">
-                <h3 className="text-3xl font-bold text-gray-900 mb-2 truncate" title={amount}>{amount}</h3>
+                <h3 className="text-[28px] font-bold text-gray-900 mb-2 truncate" title={amount}>{amount}</h3>
                 <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
                     <span className="text-green-600">{growth.split(' ')[0]}</span>
                     <span className="opacity-70 truncate">{growth.split(' ').slice(1).join(' ')}</span>
