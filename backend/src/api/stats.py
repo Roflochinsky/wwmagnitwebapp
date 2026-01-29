@@ -77,6 +77,7 @@ async def get_activity_stats(
         func.avg(Shift.full_idle_percent).label("avg_idle_pct"),
         func.avg(Shift.full_go_percent).label("avg_go_pct"),
         func.sum(Shift.full_work_seconds).label("sum_work_sec"),
+        func.sum(Shift.full_idle_seconds).label("sum_idle_sec"),
         func.sum(Shift.full_go_seconds).label("sum_go_sec"),
     ).join(ProcessedFile, Shift.processed_file_id == ProcessedFile.id).where(Shift.date.between(date_from, date_to))
 
